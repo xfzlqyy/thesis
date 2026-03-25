@@ -15,6 +15,31 @@
 
 \newcommand{\bful}[1]{{\bfseries\uline{#1}}}
 
+% Insert one explicit blank back side for duplex printing.
+\newcommand{\insertblankpage}
+{
+    \clearpage
+    \begingroup
+        \thispagestyle{empty}
+        \null
+        \newpage
+    \endgroup
+}
+
+% Ensure the next content starts on a right-hand (odd) page.
+\newcommand{\forcerightpage}
+{
+    \clearpage
+    \ifodd\value{page}
+    \else
+        \begingroup
+            \thispagestyle{empty}
+            \null
+            \newpage
+        \endgroup
+    \fi
+}
+
 % Commands to input body pages
 \ifthenelse{\equal{\Degree}{undergraduate}}
 {
