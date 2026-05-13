@@ -12,17 +12,17 @@ Status labels:
 
 ## Claim-Evidence And Experiments
 
-- [ ] **E1. Main experiment results are still incomplete.**  
-  Status: `blocked`  
-  Current evidence: `待填` cells remain in `body/undergraduate/final/2-body.tex`, currently concentrated in the real-capture SfM experiment.  
-  Required fix: fill all PSNR/SSIM/LPIPS values and update result analysis.  
-  Verification: run `rg -n "待填" docs/thesis/body/undergraduate/final` and confirm no result table placeholders remain.
+- [x] **E1. Main experiment results are still incomplete.**  
+  Status: `verified`  
+  Current fix: all main-result and real-capture SfM table values have been filled, and the result analysis has been rewritten to match the completed experiments.  
+  Required fix: none.  
+  Verification: `rg -n "待填" docs/thesis/body/undergraduate/final` returns no matches.
 
-- [ ] **E2. Fast SfM contribution needs direct downstream comparison.**  
-  Status: `patched`  
-  Current patch: experiment 2 now compares `增量式 SfM` and `本文快速 SfM` using PSNR/SSIM/LPIPS, and explains why reprojection error is not the primary metric in `body/undergraduate/final/2-body.tex`.  
-  Required fix: fill per-scene numbers for both calibration methods on the real-capture `company` and `jazz` scenes.  
-  Verification: check that each scene has both rows and that the result discussion states whether fast SfM improves downstream rendering.
+- [x] **E2. Fast SfM contribution needs direct downstream comparison.**  
+  Status: `verified`  
+  Current fix: experiment 2 compares `增量式 SfM` and `本文快速 SfM` on the real-capture `company` and `jazz` scenes using calibration time plus PSNR/SSIM/LPIPS. The discussion now states that the proposed pipeline improves calibration efficiency while achieving calibration effects comparable to the traditional SfM pipeline.  
+  Required fix: none.  
+  Verification: each scene has both calibration rows, and the analysis avoids claiming superior calibration accuracy.
 
 - [x] **E3. LiDAR initialization and K-d tree downsampling need ablation evidence.**  
   Status: `verified`  
@@ -64,25 +64,25 @@ Status labels:
 
 ## Related Work And Story
 
-- [ ] **R1. Related work is still somewhat textbook-like.**  
-  Status: `patched`  
-  Current patch: gap summaries were added for traditional reconstruction, neural rendering/radiance fields, 3DGS extensions, fisheye 3DGS adaptation, and SLAM/calibration.  
-  Required fix: after the final result claims are known, verify that related-work gaps still match the paper's actual contribution scope.  
-  Verification: each related-work subsection should answer "why this is insufficient for our setting".
+- [x] **R1. Related work is still somewhat textbook-like.**  
+  Status: `verified`  
+  Current fix: related-work subsections now include gap summaries for traditional reconstruction, neural rendering/radiance fields, 3DGS extensions, fisheye 3DGS adaptation, and SLAM/calibration, and connect those gaps to the paper's fast SfM, virtual perspective view, and LiDAR initialization design choices.  
+  Required fix: none.  
+  Verification: each related-work subsection has been checked to state the remaining difficulty and, where appropriate, how this thesis addresses it.
 
-- [ ] **R2. Introduction claims must be revisited after results are filled.**  
-  Status: `blocked`  
-  Issue: contribution wording currently claims improved stability, effective initialization, and engineering feasibility before all results are present.  
-  Required fix: after metrics are filled, weaken or strengthen claims to match actual evidence.  
-  Verification: create a claim-evidence map for the introduction and ensure each claim points to a table, figure, or explicit experiment.
+- [x] **R2. Introduction claims must be revisited after results are filled.**  
+  Status: `verified`  
+  Current fix: the introduction contribution wording now matches the final evidence: fast SfM is described as improving calibration efficiency while achieving calibration effects comparable to traditional SfM, and LiDAR initialization is described as K-d tree downsampling plus local covariance based scale/rotation initialization rather than strict proportional density preservation.  
+  Required fix: none.  
+  Verification: checked the introduction contribution list against the completed experiment and ablation conclusions.
 
 ## Language, Terminology, And Polish
 
-- [ ] **L1. Terminology and style need normalization.**  
-  Status: `patched`  
-  Current patch: first-person `我们`, strong informal degree words, and several spoken-style method descriptions were rewritten in the reviewed sections. Remaining `比较` hits are comparison-context usages such as "进行比较", not degree modifiers.  
-  Required fix: do one final full-paper language pass after all experiment text is filled.  
-  Verification: run `rg -n "我们|大大|极大|比较|较好" docs/thesis/body/undergraduate/final` and inspect any remaining hits in context.
+- [x] **L1. Terminology and style need normalization.**  
+  Status: `verified`  
+  Current fix: final terminology/style pass completed for the thesis text and author CV. First-person wording, strong informal degree words, and spoken-style phrases were removed from the checked sections. The acknowledgement file was intentionally left unchanged.  
+  Required fix: none.  
+  Verification: `rg -n "我们|大大|极大|比较|较好" docs/thesis/body/undergraduate/final/1-introduction.tex docs/thesis/body/undergraduate/final/2-body.tex docs/thesis/body/undergraduate/final/3-appendix.tex docs/thesis/body/undergraduate/final/4-cv.tex docs/thesis/body/undergraduate/final/abstract.tex` returns no matches.
 
 - [x] **L2. Known typos remain.**  
   Status: `verified`  
@@ -90,19 +90,19 @@ Status labels:
   Required fix: none for these known typo patterns.  
   Verification: `rg -n "基于先验位姿态|渲染渲染|NvtVLAD|非线形|的的" docs/thesis/body/undergraduate/final` returns no matches.
 
-- [ ] **L3. Table readability and numeric formatting still need final pass.**  
-  Status: `blocked`  
-  Issue: result precision is inconsistent in some existing metric cells, and many values are placeholders.  
-  Required fix: after filling results, standardize decimal places per metric and highlight best/second-best values if desired.  
-  Verification: inspect all tables in compiled PDF for alignment, line breaks, and consistent precision.
+- [x] **L3. Table readability and numeric formatting still need final pass.**  
+  Status: `verified`  
+  Current fix: result precision has been standardized: PSNR uses two decimals, SSIM/LPIPS use three decimals, and image counts/SfM runtimes use integers.  
+  Required fix: none.  
+  Verification: inspected the main comparison table, SfM table, and ablation table in `body/undergraduate/final/2-body.tex`.
 
 ## Visual Evidence
 
-- [ ] **V1. Qualitative figures are insufficient for the claims.**  
-  Status: `open`  
-  Issue: there is currently a high-FoV artifact example, but not enough visual evidence for edge quality, pose refinement effects, LiDAR initialization, or K-d tree downsampling.  
-  Required fix: add qualitative comparisons for the major modules, especially edge regions and weak-texture regions.  
-  Verification: every major ablation row should have either quantitative evidence, qualitative evidence, or both.
+- [x] **V1. Qualitative figures are insufficient for the claims.**  
+  Status: `verified`  
+  Current fix: added annotated qualitative comparison grids for ScanNet++ and Zip-NeRF scenes using GT, 3DGUT, 3DGEER, and the proposed method. The annotated regions highlight local differences in structure, edge regions, and texture details. Module-level claims are supported by the quantitative ablation table.  
+  Required fix: none.  
+  Verification: the placeholder qualitative figure has been replaced, all annotated images are stored under `figure/paper/eval_image/`, and `make` compiles successfully.
 
 - [x] **V2. Virtual split coverage visualization is missing.**  
   Status: `verified`  

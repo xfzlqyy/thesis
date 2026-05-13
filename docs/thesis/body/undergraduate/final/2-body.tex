@@ -92,7 +92,8 @@ LightGlue \cite{lindenberger2023lightglue} 则通过深度学习网络进行稀�
 在大场景建模方面，V3DG\cite{yang2025v3dg}、Octree-GS \cite{ren2024octree} 和 CLoD-GS \cite{cheng2025clodgs} 等工作尝试通过显式层级结构或连续细节层次机制，缓解原始 3DGS 在远景视角下仍需渲染大量高斯的问题。这类方法的共同目标，是让场景表示能够随着观察距离变化而调整参与渲染的高斯规模，从而在保留近景细节的同时降低远景计算负担，使 3DGS 逐渐具备面向大场景和多尺度浏览的能力。
 在质量提升方面，Mip-Splatting \cite{yu2024mipsplatting}通过在三维空间和图像空间引入更合理的滤波策略，缓解了原始 3DGS 在不同观察尺度下的混叠问题 ；2DGS 将三维体高斯改为二维高斯面片，并在优化中引入表面一致性约束，有效提升了几何精度 \cite{huang2024twodgs}；StableGS 则聚焦于漂浮伪影问题，通过跨视角深度一致性约束和更稳定的透明度建模减少非真实表面上的高斯 \cite{wang2025stablegs}；Geometry-Grounded Gaussian Splatting 则更进一步，试图从表示层面为高斯建立更明确的几何解释，以支持更稳定的深度恢复与表面提取 \cite{zhang2026geometrygroundedgs}。
 在训练效率方面，一类工作着眼于优化算法本身。例如，3DGS$^2$ \cite{lan20253dgs2}尝试用二阶收敛的算法，从数学层面加速高斯的训练 。另一类工作如 Speedy-Splat\cite{hanson2025speedy}则更偏向系统层面的管线加速，通过计算更精确的高斯像素覆盖来降低训练和渲染开销。
-这些 3DGS 扩展工作主要改进表示质量、训练效率或多尺度渲染能力，但大多默认输入来自透视相机和 SfM 稀疏点云。对于本文的鱼眼移动采集场景，仍需要同时处理强畸变投影、长序列标定和 LiDAR 点云初始化这三个前置问题。
+这些 3DGS 扩展工作主要改进表示质量、训练效率或多尺度渲染能力，但大多默认输入来自透视相机和 SfM 稀疏点云。
+对于本文的鱼眼移动采集场景，仍需要同时处理高斯在强畸变投影下渲染困难、长序列标定用时较长这两个重要问题。
 
 \subsubsection{鱼眼与广角相机适配}
 
@@ -114,32 +115,32 @@ LightGlue \cite{lindenberger2023lightglue} 则通过深度学习网络进行稀�
 FAST-LIO2 \cite{xu2022fastlio2}则基于FAST-LIO，尝试抛弃特征提取模块，直接将原始激光雷达点配准到地图中，进一步提升了精度与鲁棒性。同时提出了增量k-d树，能够实现真正实时大尺度建图。
 
 除轨迹本身外，多传感器系统还面临跨模态外参标定问题。对于鱼眼相机与激光雷达的联合重建而言，两者之间存在一个刚性变化，需要合理的对齐算法能够将 LiDAR 所提供的几何信息对齐到图像观测中，从而能够根据odometry的外参得到相机较精确的预标定外参。
-像素级外参自标定方法通过边缘或结构对齐来估计 LiDAR 与相机之间的坐标关系\cite{yuan2021pixel}，为跨传感器几何约束提供了可行方案。SLAM 及相关标定方法虽然无法直接得到三维高斯训练所需要的高精度标定结果，但它们可以为基于图像的SfM管线提供可靠的位姿初值和几何先验，从而有效提高SfM的效率和精度。
-因此，SLAM 和跨传感器标定在本文中并不是最终重建结果，而是用于降低鱼眼 SfM 优化难度的几何先验。本文进一步将该先验与学习式特征匹配、三角化和光束平差结合，以获得可用于 3DGS 训练的相机参数。
+像素级外参自标定方法通过边缘和结构对齐来估计 LiDAR 与相机之间的坐标关系\cite{yuan2021pixel}，为跨传感器几何约束提供了可行方案。SLAM 及相关标定方法虽然无法直接得到三维高斯训练所需要的高精度标定结果，但它们可以为基于图像的 SfM 管线提供可靠的位姿初值和几何先验，从而降低长序列 SfM 的优化成本，并使后续图像标定在更少注册与全局优化次数下取得与传统增量式 SfM 管线相当的标定效果。
+SLAM 和跨传感器标定在本文中为长序列的鱼眼 SfM 提供了几何先验。本文进一步将该先验与学习式特征匹配、三角化和光束平差结合，以获得可用于 3DGS 训练的相机参数。
 
 \cleardoublepage
 \section{主要方法}
-本文提出了一套基于鱼眼相机和激光雷达的三维高斯场景重建管线，能够以双鱼眼相机采集得到的视频和激光雷达点云作为输入数据，实现室内三维高斯场景重建。
-该方法的整体流程如图~\ref{fig:method-overview} 所示，主要解决快速运动结构恢复、大畸变鱼眼相机 3DGS 重建和激光雷达点云高效初始化三个问题，分别对应以下三个组件：
-\begin{enumerate}
-    \item 基于先验位姿的快速 SfM 管线（见第~\ref{sec:method-fast-sfm}节）：根据激光雷达、IMU 数据和预标定的相机到雷达外参得到鱼眼外参先验，用于提升鱼眼相机数据内外参优化与场景注册的效率和质量。
-    \item 基于虚拟透视图的鱼眼图像三维高斯重建模块（见第~\ref{sec:method-perspective-sampling}节）：通过自动估计鱼眼有效水平、竖直视场角和虚拟透视图分辨率，将鱼眼图像拆分为八张共享光心的小视场角虚拟透视图，在保留大视场角信息的同时兼容传统三维高斯模型训练管线。
-    \item 基于激光雷达的自适应初始化模块（见第~\ref{sec:method-lidar-mesh}节）：提出一种基于 K-d tree 的点云下采样与尺度感知初始化方法，使扫描更充分的区域在下采样后倾向于保留更多初始化点，并降低直接使用完整雷达点云带来的初始化规模。
-\end{enumerate}
-
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{paper/method-overview.pdf}
     \caption{本文方法整体流程图}
     \label{fig:method-overview}
 \end{figure}
 
+本文提出了一套基于鱼眼相机和激光雷达的三维高斯场景重建管线，能够以双鱼眼相机采集得到的视频和激光雷达点云作为输入数据，实现室内三维高斯场景重建。
+该方法的整体流程如图~\ref{fig:method-overview} 所示，主要解决快速运动结构恢复、大畸变鱼眼相机 3DGS 重建和激光雷达点云高效初始化三个问题，分别对应以下三个组件：
+\begin{enumerate}
+    \item 基于先验位姿的快速 SfM 管线（见第~\ref{sec:method-fast-sfm}节）：根据激光雷达、IMU 数据和预标定的相机到雷达外参得到鱼眼外参先验，用于提高长序列鱼眼数据的标定效率，并在下游重建中取得与传统 SfM 管线相当的标定效果。
+    \item 基于虚拟透视图的鱼眼图像三维高斯重建模块（见第~\ref{sec:method-perspective-sampling}节）：通过自动估计鱼眼有效水平、竖直视场角和虚拟透视图分辨率，将鱼眼图像拆分为八张共享光心的小视场角虚拟透视图，在保留大视场角信息的同时兼容传统三维高斯模型训练管线。
+    \item 基于激光雷达的自适应初始化模块（见第~\ref{sec:method-lidar-mesh}节）：提出一种基于 K-d tree 的点云下采样与尺度感知初始化方法，使扫描更充分的区域在下采样后倾向于保留更多初始化点，并降低直接使用完整雷达点云带来的初始化规模。
+\end{enumerate}
+
 \subsection{基于几何先验的快速SfM管线}
 \label{sec:method-fast-sfm}
 
-鱼眼相机具有更大的视场角，但同时也带来了更强的畸变和更复杂的内外参耦合关系。若直接沿用传统增量式 SfM 管线，
-一方面需要在长轨迹视频上反复执行注册与全局光束平差，同时相机外参和畸变参数的共同优化会降低光束平差的收敛稳定性，并且鱼眼相机的大视场角会带来更多三角化点，导致全局光束平差的单次迭代效率较低，两者结合导致传统 SfM 管线在鱼眼相机上的运行速度较慢；
-而且鱼眼内参、畸变参数与位姿参数之间的耦合也给优化带来挑战，容易使内外参的优化陷入局部最优。为此，本文将 LiDAR-IMU 里程计提供的连续位姿作为相机外参先验，并结合迭代式 SfM 管线获得稳定的优化结果。
+鱼眼相机具有更大的视场角，但同时也带来了更强的畸变和更复杂的内外参耦合关系。
+若直接沿用传统增量式 SfM 管线，一方面长轨迹视频需要反复执行图像注册与全局光束平差；另一方面，鱼眼相机的大视场角会产生更多可三角化点，且外参、内参和畸变参数需要共同优化，使单次全局光束平差开销进一步增加。因此，传统增量式 SfM 在长序列鱼眼数据上的运行时间会随图像数量和场景复杂度快速增长。
+为此，本文将 LiDAR-IMU 里程计提供的连续位姿作为相机外参先验，并结合迭代式 SfM 管线，在提高标定效率的同时取得与传统增量式 SfM 管线相当的标定效果。
 
 首先，本文使用 ChArUco 标定板预先估计鱼眼相机的焦距、主点和畸变参数，并将这些内参作为后续优化的初始化，从而减少大视场角成像下内参与位姿的相互过拟合；同时为相机到 LiDAR 的预标定过程提供相机内参。
 然后，通过 FAST-LIO2 \cite{xu2022fastlio2}，本文利用原始激光雷达点云和 IMU 数据估计传感器在世界坐标系下的连续轨迹以及融合后的稀疏点云地图。
@@ -150,22 +151,9 @@ FAST-LIO2 \cite{xu2022fastlio2}则基于FAST-LIO，尝试抛弃特征提取模�
 \end{equation}
 式中 \(\mathbf{T}_{c_t}^{w,0}\) 为第 \(t\) 帧鱼眼图像在世界坐标系下的初始位姿。
 
-在得到初始内外参后，本文不再完全依赖 COLMAP 的逐帧增量注册，而是利用该初始化的内外参数按照如下管线进行相机内外参优化。
-首先，本文使用 SuperPoint\cite{detone2018superpoint} 进行鱼眼图像上的特征提取。
-随后，本文使用 LightGlue\cite{lindenberger2023lightglue} 进行图像间特征匹配。考虑到完整场景扫描通常包含大量待标定图像，若使用全量两两匹配策略，匹配图像对数会随图像数量快速增长，带来较高计算开销。
-为解决这个问题，本文设计了混合匹配对生成策略。匹配对由四部分组成：
-一是滑动窗口匹配，即令每张图与其之后的 \(w\) 张图进行匹配，因为时序相近的图像通常也具有空间邻近性，\(w\) 常取 4；
-二是根据空间信息生成匹配对，即对每张图，利用其先验外参选取 \(k\) 个邻近图像进行匹配，以保证当数据采集路径存在回环时，能够在回环区域进行一致性优化，\(k\) 一般取 20；
-三是根据语义信息生成匹配对，即对每张图，使用 NetVLAD\cite{arandjelovic2016netvlad} 提取全图特征，然后选取 \(m\) 个语义邻近图像生成匹配对，以覆盖空间不相近但语义相似的图像，\(m\) 一般取 40；
-四是长程时序锚点匹配，即每 \(g\) 帧取一个锚点，并对锚点两两匹配以增强全局标定一致性，其中 \(g\) 一般取 20，最后生成匹配对数约为 \(P_{anchor}(n) = \frac{n^2}{2 g^2}\)。
-虽然锚点匹配对数量仍然包含二次项，但二次项具有较小常数系数，因此图像数量增长时匹配对数量不会过快增加，同时也可以通过参数调整控制匹配规模。
+在得到初始内外参后，本文不再完全依赖 COLMAP 的逐帧增量注册，而是利用先验位姿直接构建图像匹配对，并通过全局重三角化和全局光束平差进行迭代优化。具体而言，本文使用 SuperPoint\cite{detone2018superpoint} 提取鱼眼图像特征，使用 LightGlue\cite{lindenberger2023lightglue} 进行特征匹配，并结合时间邻近、空间邻近、语义邻近和长程锚点匹配生成候选图像对。随后，管线通过三轮三角化与光束平差逐步从较宽松的匹配保留过渡到更严格的几何过滤：前两轮采用 \(4\) 像素重投影阈值保留更多可用匹配并稳定内外参优化，第三轮采用 \(2\) 像素阈值进一步剔除低质量三角化点。完整匹配对生成策略、三轮迭代伪代码以及观测过滤、轨迹合并和轨迹补全对应的重投影误差阈值设置见\hyperref[app:fast-sfm]{附录 A}.
 
-完成上述特征提取与匹配后，本文进行三次迭代以优化内外参。每次迭代使用上一轮相机参数重新三角化，再执行光束平差。
-第一次迭代主要目的是对外参进行微调。由于基于 IMU 和激光雷达的外参估计会随距离增加产生累积误差，该轮使用较为宽松的重投影误差，并在光束平差优化时固定内参，以降低内外参共同优化进入局部极小值的风险。
-第二次迭代主要目的是用更精确的三角化点进行微调，由于上一轮迭代时三角化使用的是激光雷达估计的质量较低的外参，在几何验证时可能会错误筛去很多匹配点，故这次迭代是为了得到更多的三角化点再次进行优化以提高标定质量，同时这次会将相机的内外参进行共同的优化。
-第三次迭代主要目的是筛去错误匹配并进一步微调。由于此时已经得到置信度较高的内外参，该轮在三角化时使用更严格的重投影误差阈值，以筛去精度较低的匹配点，然后再用剩余匹配点对内外参进行共同优化，从而得到质量更高的 SfM 结果。
-
-相对于渐进式的增量 SfM，本文通过激光雷达和 IMU 数据计算先验位姿，降低逐图像注册带来的累积误差，使所有图像在三角化后可以直接进入全局光束平差优化。该设计减少了逐步注册和多轮全局优化的计算开销，并为后续三维高斯训练提供相机参数。
+相对于渐进式的增量 SfM，本文利用激光雷达和 IMU 数据提供先验位姿，使图像在完成特征匹配和三角化后可以直接进入固定轮次的全局光束平差优化。该设计减少了逐帧注册和反复全局优化的计算开销，并为后续三维高斯训练提供相机参数。
 
 \subsection{基于虚拟透视图的鱼眼图像三维高斯重建模块}
 \label{sec:method-perspective-sampling}
@@ -175,7 +163,7 @@ FAST-LIO2 \cite{xu2022fastlio2}则基于FAST-LIO，尝试抛弃特征提取模�
     \label{equ:method-pinhole-normalized}
     \mathbf{m}=(a,b)^{T}=\left(\frac{x}{z},\frac{y}{z}\right)^{T}.
 \end{equation}
-真实镜头并不严格满足理想针孔模型，因此常在归一化像平面上继续引入畸变模型。以常见径向畸变为例，其核心思想是根据半径 \(r=\sqrt{a^2+b^2}\) 对归一化坐标做非线性扭曲，再通过内参矩阵映射到像素平面。也就是说，畸变参数并不改变相机具有单一光心的透视成像本质，而是在射线已经落到归一化平面之后，对二维坐标施加一个与半径相关的像平面上的变形。
+真实镜头并不严格满足理想针孔模型，因此常在归一化像平面上继续引入畸变模型。以常见径向畸变为例，其核心思想是根据半径 \(r=\sqrt{a^2+b^2}\) 对归一化坐标做非线性扭曲，再通过内参矩阵映射到像素平面。也就是说，畸变参数并不改变相机具有单一光心的中心投影性质，而是在射线已经由相机坐标表示为二维归一化方向之后，对该方向施加一个与半径相关的像平面变形。
 
 鱼眼相机可以看作这一思想在大视场角条件下的扩展。常用的 KB-8 鱼眼模型\cite{kannala2006generic} 先将三维点变换到相机坐标系：
 \begin{equation}
@@ -190,7 +178,7 @@ FAST-LIO2 \cite{xu2022fastlio2}则基于FAST-LIO，尝试抛弃特征提取模�
     =
     R\mathbf{X}+T.
 \end{equation}
-随后进行针孔模型下的归一化，并用归一化平面半径计算入射光线与光轴之间的夹角：
+随后以透视归一化坐标作为射线方向的中间表示，并用归一化平面半径计算入射光线与光轴之间的夹角：
 \begin{equation}
     a=\frac{x}{z},
     \qquad
@@ -215,6 +203,7 @@ FAST-LIO2 \cite{xu2022fastlio2}则基于FAST-LIO，尝试抛弃特征提取模�
     \qquad
     y'=\frac{r_\theta}{r}b.
 \end{equation}
+当 \(r=0\) 时，上式按极限处理，此时 \(x'=0,y'=0\)。
 最后通过相机内参映射到像素坐标：
 \begin{equation}
     \label{equ:method-kb8-projection}
@@ -229,18 +218,18 @@ FAST-LIO2 \cite{xu2022fastlio2}则基于FAST-LIO，尝试抛弃特征提取模�
 \end{equation}
 OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样的建模方式，注意到其重要性质为每个像素仍然对应一条从相机光心出发的三维射线，畸变模型或者说整个内参模型只是改变了这条射线所应该映射到的像素坐标。
 
-基于这一观察，一个直接的想法是沿用传统 3DGS 对畸变图像的处理方式：根据标定得到的畸变参数，遍历目标无畸变图像的每个像素，通过双线性插值在原始畸变图像进行采样得到其对应的颜色，再使用标准透视相机 3DGS 进行训练。
+基于这一观察，一个直接的想法是沿用传统 3DGS 对畸变图像的处理方式：根据标定得到的畸变参数，直接对原鱼眼图像进行去畸变后，再使用标准透视相机 3DGS 进行训练。
 然而对于本文使用的大视场角的鱼眼相机，若尝试得到与鱼眼的视场角相同的大视场角透视图，会导致在图像边缘部分的近处物体出现严重的伪影。因为在鱼眼边缘部分，单位距离所包含的像素数量较低，而在大视角的透视效应下，近处物体的单位距离则会对应更多的像素，
 从而使得边缘区域的少量鱼眼像素会被拉伸到大面积透视平面上。如图~\ref{fig:method-high-fov-artifact} 所示，这会导致角分辨率不均、插值模糊和有效信息丢失，从而使得训练时 3DGS 的质量下降。
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.82\textwidth]{paper/high_fov_image.png}
-    \caption{单张大视场角透视化重采样产生的伪影示例。图像边缘区域会被强烈拉伸，出现明显的模糊和结构缺失。}
+    \caption{单张大视场角透视化重采样产生的伪影示例。图像边缘区域会被强烈拉伸，出现明显的模糊和结构错误。}
     \label{fig:method-high-fov-artifact}
 \end{figure}
 
-因此，本文不再尝试用一张透视图承载完整鱼眼信息，而是提出利用多张共享同一光心的小视场角虚拟透视图来承载鱼眼采集到的信息。
+因此，本文不再尝试用单张透视图承载完整鱼眼信息，而是提出利用多张共享同一光心的小视场角虚拟透视图来承载鱼眼采集到的信息。
 在拆分时，本文允许虚拟透视图具有不同的水平和垂直视场角，并通过自动搜索确定竖直视场角、水平视场角、虚拟视图朝向和输出图像分辨率。不失一般性，本文假设鱼眼图像的有效水平视场角不小于竖直视场角；若某一相机不满足该条件，可以先转置图像并交换水平、竖直方向后再执行同样的搜索流程。
 
 首先，本文根据鱼眼图像的有效像素掩码估计可用竖直视场角。记鱼眼有效像素掩码为 \(M_f\)，当像素位于相机画幅内且不属于边缘黑边区域时 \(M_f(\mathbf{x})=1\)，否则为0。本文用 \(F_y\) 表示鱼眼有效成像区域的完整竖直视场角，因此其竖直边界到光轴的最大入射角为 \(F_y/2\)。对一个候选竖直视场角 \(F_y\)，其在三维单位球面上对应一条竖直方向的候选边界：
@@ -301,7 +290,7 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
     \mid a,b\in\{-1,1\}
     \right\}.
 \end{equation}
-每个虚拟透视图使用相同的 PINHOLE 相机模型。由于 \(F_x,F_y\) 表示原始鱼眼图像的完整水平和竖直视场角，本文令单张虚拟透视图的水平和竖直视场角分别为 \(F_x/2\) 和 \(F_y/2\)。因此，在针孔相机焦距计算中使用的半视场角分别为 \(F_x/4\) 和 \(F_y/4\)。若输出图像大小为 \(W\times H\)，则虚拟相机内参为
+每个虚拟透视图使用相同的 PINHOLE 相机模型。为了能实现对鱼眼相机图像更完整的覆盖，本文令单张虚拟透视图的水平和竖直视场角分别为 \(F_x/2\) 和 \(F_y/2\)，此时，若输出图像大小为 \(W\times H\)，则虚拟相机内参为
 \begin{equation}
     \label{equ:method-perspective-k-xy}
     K_p(W,H,F_x/2,F_y/2)
@@ -367,65 +356,7 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
     }
     < \eta_r
 \end{equation}
-的最小分辨率。这样可以保证绝大多数鱼眼有效像素达到预设覆盖强度，同时避免因为少量边界像素或标定噪声导致输出分辨率被过度放大。
-完整流程如算法~\ref{alg:method-auto-perspective-sampling} 所示。
-
-\begin{algorithm}[htbp]
-    \caption{自动确定鱼眼虚拟透视图拆分方案}
-    \label{alg:method-auto-perspective-sampling}
-    \begin{algorithmic}[1]
-        \REQUIRE 鱼眼投影函数 \(\pi_f\)，鱼眼有效像素掩码 \(M_f\)，原图大小 \(W_f\times H_f\)，覆盖阈值 \(\eta_c,\eta_r\)，输出高度范围 \([N_{\min},N_{\max}]\)
-        \ENSURE 完整竖直视场角 \(F_y\)，完整水平视场角 \(F_x\)，八视图旋转集合 \(\mathcal{R}\)，虚拟透视图大小 \(W_N\times N\)
-        \STATE 若有效水平视场角小于竖直视场角，则转置图像并交换水平、竖直方向
-        \STATE 在候选范围内二分搜索 \(F_y\)
-        \WHILE{\(F_y\) 搜索区间宽度大于阈值}
-            \STATE 在 \(\mathcal{C}_y(F_y)\) 上均匀采样三维方向并投影到鱼眼图像
-            \IF{所有投影点都位于有效像素区域}
-                \STATE 增大 \(F_y\) 的下界
-            \ELSE
-                \STATE 减小 \(F_y\) 的上界
-            \ENDIF
-        \ENDWHILE
-        \STATE 以长宽比推导的水平视场角作为初始可行下界，二分搜索 \(F_x\)
-        \WHILE{\(F_x\) 搜索区间宽度大于阈值}
-            \STATE 用 \(F_x/6,F_y/6\) 的对角旋转和 \(F_x/2,F_y/2\) 的虚拟视场角构造低分辨率四个对角虚拟视图用于搜索
-            \STATE 将每个虚拟视图边界像素反投影并采样到原始鱼眼图像
-            \IF{所有边界采样点均位于有效图像范围}
-                \STATE 增大 \(F_x\) 的下界
-            \ELSE
-                \STATE 减小 \(F_x\) 的上界
-            \ENDIF
-        \ENDWHILE
-        \STATE 根据式~(\ref{equ:method-eight-view-rotations})、式~(\ref{equ:method-eight-view-axis}) 和式~(\ref{equ:method-eight-view-diag}) 构造八视图旋转集合 \(\mathcal{R}\)
-        \STATE 根据 \(F_x/2,F_y/2\) 构造虚拟透视相机内参 \(K_p\)
-        \STATE 在 \([N_{\min},N_{\max}]\) 中二分搜索分辨率 \(N\)
-        \STATE 对每个候选 \(N\) 计算所有有效鱼眼像素的贡献值 \(C_N(\mathbf{q})\)
-        \STATE 返回满足式~(\ref{equ:method-contribution-condition}) 的最小 \(N\)
-    \end{algorithmic}
-\end{algorithm}
-
-在确定 \(\mathcal{R}\) 与 \(N\) 后，即可执行鱼眼图像到虚拟透视图的反向采样，流程如算法~\ref{alg:method-virtual-perspective-sampling} 所示。
-
-\begin{algorithm}[htbp]
-    \caption{鱼眼图像到虚拟透视图的反向采样}
-    \label{alg:method-virtual-perspective-sampling}
-    \begin{algorithmic}[1]
-        \REQUIRE 原始鱼眼图像 \(I_f\)，鱼眼投影函数 \(\pi_f\)，虚拟透视内参 \(K_p\)，虚拟相机旋转集合 \(\mathcal{R}\)，输出像素域 \(\Omega_p\)
-        \ENSURE 虚拟透视图集合 \(\{I_k\}_{k=1}^{K}\) 与有效掩码集合 \(\{M_k\}_{k=1}^{K}\)
-        \FOR{每个 \(R_k\in\mathcal{R}\)}
-            \FOR{每个像素 \(\mathbf{u}\in\Omega_p\)}
-                \STATE \(\mathbf{d}\Leftarrow R_k K_p^{-1}\tilde{\mathbf{u}} / \left\|K_p^{-1}\tilde{\mathbf{u}}\right\|\)
-                \STATE \(\mathbf{x}_f\Leftarrow \pi_f(\mathbf{d})\)
-                \IF{\(\mathbf{x}_f\) 位于有效鱼眼像素区域}
-                    \STATE \(I_k(\mathbf{u})\Leftarrow \mathrm{Bilinear}(I_f,\mathbf{x}_f)\)
-                    \STATE \(M_k(\mathbf{u})\Leftarrow 1\)
-                \ELSE
-                    \STATE \(M_k(\mathbf{u})\Leftarrow 0\)
-                \ENDIF
-            \ENDFOR
-        \ENDFOR
-    \end{algorithmic}
-\end{algorithm}
+的最小分辨率。这样可以保证绝大多数鱼眼有效像素达到预设覆盖强度，同时避免因为少量边界像素导致输出分辨率被过度放大。自动视场角与分辨率搜索的伪代码、以及鱼眼图像到虚拟透视图的逐像素反向采样过程见\hyperref[app:virtual-perspective]{附录 B}.
 
 从 3DGS 的渲染近似看，虚拟透视图的作用并不是改变三维高斯本身，而是避免在强鱼眼畸变投影上直接使用 EWA Splatting \cite{zwicker2002ewa} 的局部线性近似。若直接将三维高斯投影到鱼眼图像，投影函数可写为
 \begin{equation}
@@ -450,7 +381,7 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
 \(\mathbf{d}_{p,k}(\mathbf{u})\) 表示第 \(k\) 张虚拟透视图中像素 \(\mathbf{u}\) 所对应的三维单位射线方向。具体而言，先用虚拟透视相机内参 \(K_p\) 将像素 \(\mathbf{u}\) 反投影到虚拟相机坐标系中的射线，再通过相对旋转 \(R_k\) 将该方向变换到原始鱼眼相机坐标系下。由于虚拟透视图与鱼眼图像共享同一光心，\(\mathbf{d}_{p,k}(\mathbf{u})\) 同时也是原始鱼眼相机中与该虚拟像素对应的入射光线方向。
 经过这一拆解后，3DGS 在训练和渲染时只需要对 \(\pi_{v,k}\) 进行局部一阶近似，而由于每张虚拟透视图只覆盖较小视场角，且\(\pi_{v,k}\) 是普通透视投影，其多项式展开后投影中的非线性项远小于带有强畸变完整鱼眼投影中的非线性项，此时渲染中的一阶近似误差处于可接受范围内。而强非线性的鱼眼畸变不再进入三维高斯到二维高斯的近似过程，而是作为二维图像重采样中的 \(w_{f,k}\) 被精确处理。
 
-从另一个角度而言，虚拟透视图中的二维椭圆高斯可以理解为：三维高斯先通过稳定的透视投影 \(\pi_{v,k}\) 得到在透视图上的投影结果，再通过 \(w_{f,k}\) 与原始鱼眼图像中的观测颜色建立对应。这个过程没有改变相机光心和三维射线，也没有改变空间中高斯与场景几何的关系，只是将鱼眼图像上的观测重新排列到若干张小视场角透视图中。因此，在标定准确的理想条件下，使用虚拟透视图训练与直接使用鱼眼射线训练具有等价性；实际误差主要来自离散图像插值和标定误差。
+从另一个角度而言，虚拟透视图中的二维椭圆高斯可以理解为：三维高斯先通过稳定的透视投影 \(\pi_{v,k}\) 得到在透视图上的投影结果，再通过 \(w_{f,k}\) 与原始鱼眼图像中的观测颜色建立对应。这个过程没有改变相机光心和三维射线，也没有改变空间中高斯与场景几何的关系，只是将鱼眼图像上的观测重新排列到若干张小视场角透视图中。因此，在标定准确的理想条件下，这个过程正确能够正确的保留鱼眼观测的几何关系；实际误差主要来自离散图像插值和标定误差。
 
 由于所有虚拟透视图与原始鱼眼图共享同一光心，其外参可以由鱼眼相机位姿直接传播得到。本文在该部分统一采用 camera-to-world 位姿约定，即 \(\mathbf{T}_{c}^{w}\) 表示从相机坐标系到世界坐标系的刚体变换。记原始鱼眼相机位姿为 \(\mathbf{T}_{f_t}^{w}\)，第 \(k\) 个虚拟透视相机到原始鱼眼相机的相对旋转为 \(R_k\)，则第 \(t\) 帧对应的第 \(k\) 张虚拟透视图位姿可写为
 \begin{equation}
@@ -486,101 +417,14 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
 实际采集过程中，操作者通常会对具有更多几何细节或关注度更高的区域进行更充分的观察，这些区域在融合后的雷达点云中往往也具有更高密度。
 本文希望保留这一性质，使高斯初始化在高细节区域天然更密，从而让后续优化更容易在这些区域具有更强表达能力。
 
-为此，本文提出基于 K-d tree 的点云下采样方法。给定经过离群点剔除后的雷达点云 \(P=\{\mathbf{p}_i\}_{i=1}^{N}\)，假设目标最大初始化高斯点数为 \(N_t\)，首先根据目标点数自动确定叶节点容量
-\begin{equation}
-    \label{equ:method-kdtree-nmin}
-    n_{\mathrm{leaf}}
-    =
-    \max\left(1,\left\lceil \frac{N}{N_t}\right\rceil\right).
-\end{equation}
-随后参考 K-d tree 的建立过程，递归地沿点云包围盒最长轴进行空间划分。对于某个待分裂节点 \(S\)，若其点数不超过 \(n_{\mathrm{leaf}}\)，则将其作为叶节点；否则在包围盒最长轴的中心位置进行划分。若中心划分导致某一侧为空，则退化为沿该轴排序后的中位数划分。对于每个叶节点 \(L_j\)，本文从其中随机选择一个原始雷达点作为代表点保留，并使用固定随机种子保证结果可复现：
-\begin{equation}
-    \label{equ:method-kdtree-centroid}
-    \mathbf{p}_j^\ast
-    =
-    \mathrm{Sample}(L_j).
-\end{equation}
-如果最终叶节点数超过 \(N_t\)，则再随机裁剪到目标点数以内。该过程并不保证任意局部区域的点数比例严格不变，也不把点云密度保持作为理论约束；它只利用 K-d tree 的自适应空间划分性质，使扫描更充分、原始点数更多的区域通常被划分为更多局部叶节点，从而在下采样后倾向于保留更多代表点。由于实验中 LiDAR 初始化对整体平均指标的提升并不明显，本文将其定位为一种几何先验和初始化规模控制策略，而不是保证重建质量提升的核心模块。
-
-\begin{algorithm}[htbp]
-    \caption{基于 K-d tree 叶节点代表点的雷达点云下采样}
-    \label{alg:method-kdtree-downsample}
-    \begin{algorithmic}[1]
-        \REQUIRE 雷达点云 \(P=\{\mathbf{p}_i\}_{i=1}^{N}\)，目标保留点数 \(N_t\)
-        \ENSURE 下采样点云 \(P'\)，局部协方差集合 \(\{\Sigma_j\}\)
-        \STATE \(n_{\mathrm{leaf}}\Leftarrow \max(1,\lceil N/N_t\rceil)\)
-        \STATE 初始化节点队列 \(\mathcal{Q}\Leftarrow\{(P,P)\}\)，叶节点及父节点集合 \(\mathcal{L}\Leftarrow\emptyset\)
-        \WHILE{\(\mathcal{Q}\) 非空}
-            \STATE 从 \(\mathcal{Q}\) 中取出一个节点及其父节点 \((S,A)\)
-            \IF{\(|S|\leq n_{\mathrm{leaf}}\)}
-                \STATE 将 \((S,A)\) 加入集合 \(\mathcal{L}\)
-            \ELSE
-                \STATE 选择 \(S\) 的包围盒中长度最大的坐标轴 \(a\)
-                \STATE 按第 \(a\) 维包围盒中心将 \(S\) 划分为 \(S_l\) 和 \(S_r\)
-                \IF{\(S_l\) 或 \(S_r\) 为空}
-                    \STATE 沿第 \(a\) 维排序，并按中位数重新划分 \(S_l,S_r\)
-                \ENDIF
-                \STATE 将 \((S_l,S),(S_r,S)\) 加入 \(\mathcal{Q}\)
-            \ENDIF
-        \ENDWHILE
-        \STATE \(P'\Leftarrow\emptyset,\ \{\Sigma_j\}\Leftarrow\emptyset\)
-        \FOR{每个叶节点及其父节点 \((L_j,A_j)\)}
-            \STATE 从 \(L_j\) 中随机选择代表点 \(\mathbf{p}_j^\ast\)
-            \STATE 计算父节点 \(A_j\) 中点坐标的协方差矩阵 \(\Sigma_j\)
-            \STATE 将 \(\mathbf{p}_j^\ast\) 加入 \(P'\)，将 \(\Sigma_j\) 加入协方差集合
-        \ENDFOR
-        \IF{\(|P'|>N_t\)}
-            \STATE 随机裁剪 \(P'\) 和对应协方差至 \(N_t\) 个元素
-        \ENDIF
-        \STATE 返回 \(P'\) 和 \(\{\Sigma_j\}\)
-    \end{algorithmic}
-\end{algorithm}
-
-完成下采样后，本文将保留的雷达点转换为 3DGS 可读取的高斯初始化文件。对于第 \(j\) 个叶节点，代表点 \(\mathbf{p}_j^\ast\) 直接作为高斯中心 \(\mathbf{\mu}_j\)。若原始点云包含颜色属性，则将 RGB 颜色归一化到 \([0,1]\)，并写入球谐函数的直流分量
-\begin{equation}
-    \label{equ:method-lidar-sh-dc}
-    \mathbf{f}_{\mathrm{dc},j}
-    =
-    \frac{\mathbf{rgb}_j-0.5}{C_0},
-    \quad
-    C_0=0.2820947918,
-\end{equation}
-其余高阶球谐系数初始化为 0；若点云没有颜色属性，则使用白色作为初始颜色。透明度参数对所有高斯统一初始化为 1。
-
-高斯的初始尺度和旋转由代表点所在叶节点的父节点协方差给出。相比直接使用叶节点内的点统计协方差，父节点包含更大的局部邻域，能够更稳定地估计该区域点云的表面分布。记第 \(j\) 个代表点所在叶节点的父节点为 \(A_j\)，其协方差矩阵为
-\begin{equation}
-    \label{equ:method-lidar-covariance}
-    \Sigma_j
-    =
-    \frac{1}{|A_j|-1}
-    \sum_{\mathbf{p}\in A_j}
-    (\mathbf{p}-\bar{\mathbf{p}}_{A_j})(\mathbf{p}-\bar{\mathbf{p}}_{A_j})^{T},
-\end{equation}
-其中 \(\bar{\mathbf{p}}_{A_j}\) 为父节点内点坐标均值。当局部点云协方差退化时，本文使用最小尺度 \(s_{\min}\) 进行正则化。对 \(\Sigma_j\) 进行特征分解并按特征值从大到小排序：
-\begin{equation}
-    \label{equ:method-lidar-eigen}
-    \Sigma_j = U_j \mathrm{diag}(\lambda_{j,1},\lambda_{j,2},\lambda_{j,3}) U_j^{T}.
-\end{equation}
-若 \(U_j\) 的行列式为负，则翻转最后一列以得到合法旋转矩阵。随后将 \(U_j\) 转换为四元数作为高斯旋转参数，并将尺度初始化为
-\begin{equation}
-    \label{equ:method-lidar-scale}
-    \mathbf{s}_j
-    =
-    \log\left(
-    \gamma
-    \sqrt{
-    \max(\lambda_j, s_{\min}^{2})
-    }
-    \right),
-\end{equation}
-其中 \(\gamma\) 为尺度放大系数，实验中取 3。局部点云的协方差矩阵能够反映该区域的表面性质：在平面或边缘附近，较大的特征值通常对应表面切向或结构延展方向，较小的特征值对应法向或厚度方向。因此，用父节点协方差初始化高斯的尺度和旋转，可以使初始各向异性高斯更贴合局部表面几何，而不是从各向同性点状高斯开始优化。
+为此，本文采用基于 K-d tree 的点云下采样与尺度感知高斯初始化。该方法先递归划分雷达点云的空间包围盒，并从每个局部叶节点中选择一个代表点作为初始高斯中心；由于原始点数更多的区域通常会被划分出更多局部节点，扫描更充分的区域在下采样后也倾向于保留更多代表点。随后，本文利用代表点所在叶节点的父节点局部协方差初始化高斯尺度和旋转，使初始各向异性高斯能够更好贴合局部表面几何。该过程不将点云密度保持作为严格理论约束，而是作为一种几何先验和初始化规模控制策略；完整 K-d tree 下采样伪代码、代表点选择、球谐颜色、透明度、尺度和旋转初始化公式见\hyperref[app:lidar-init]{附录 C}.
 
 \cleardoublepage
 \section{实验设计与结果分析}
 
 本章围绕本文提出的鱼眼相机与激光雷达融合三维高斯重建管线进行实验验证。实验主要回答三个问题：
 第一，基于虚拟透视图的鱼眼图像重建是否能够在保留大视场角信息的同时避免单张大视场角去畸变图带来的边缘拉伸伪影；
-第二，几何先验辅助的 SfM 管线是否能够提升鱼眼图像内外参优化的效率与质量；
+第二，几何先验辅助的 SfM 管线是否能够提高鱼眼图像内外参优化的效率，并取得与传统 SfM 管线相当的标定效果；
 第三，基于激光雷达的自适应初始化与 K-d tree 下采样是否能够在控制初始化规模的同时提供可用的几何先验。
 
 \subsection{评价指标}
@@ -607,7 +451,7 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
 
 \subsection{各数据集上的量化对比}
 
-表~\ref{tab:exp-main-fisheye} 为各数据集上的主要量化结果。Scene 列同时标注场景名称及其数据集来源；Method、PSNR、SSIM 和 LPIPS 列在同一单元格中按相同顺序列出四种对比方法及对应结果，便于逐场景填写和比较。
+表~\ref{tab:exp-main-fisheye} 为各数据集上的主要量化结果。Scene 列同时标注场景名称及其数据集来源；Method、PSNR、SSIM 和 LPIPS 列在同一单元格中按相同顺序列出四种对比方法及对应结果，便于逐场景填写和对比。
 在这一章节中，各方法均使用鱼眼相机图像作为训练输入，并使用由测试鱼眼图像中心方向去畸变得到的小视场角透视图作为测试图像。由于重建后的三维场景在实际应用中通常会以透视相机视角进行渲染，而不是重新渲染为鱼眼图像，因此该设置用于验证不同算法从鱼眼训练输入迁移到透视测试视角的新视角合成能力。
 
 \begingroup
@@ -641,31 +485,31 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
         \midrule
         \makecell[l]{bedroom\\ScanNet++} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
-        \makecell[c]{30.55\\25.38\\32.354\\32.34} &
+        \makecell[c]{30.55\\25.38\\32.35\\32.34} &
         \makecell[c]{0.971\\0.908\\0.971\\0.980} &
         \makecell[c]{0.067\\0.278\\0.066\\0.062} \\
         \midrule
         \makecell[l]{classroom\\ScanNet++} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
-        \makecell[c]{30.016\\24.59\\33.41\\33.84} &
+        \makecell[c]{30.01\\24.59\\33.41\\33.84} &
         \makecell[c]{0.954\\0.884\\0.961\\0.976} &
         \makecell[c]{0.098\\0.321\\0.094\\0.074} \\
         \midrule
         \makecell[l]{kitchen\\ScanNet++} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
-        \makecell[c]{30.465\\22.96\\30.767\\32.77} &
+        \makecell[c]{30.46\\22.96\\30.76\\32.77} &
         \makecell[c]{0.956\\0.848\\0.953\\0.968} &
         \makecell[c]{0.096\\0.317\\0.090\\0.085} \\
         \midrule
         \makecell[l]{office\\ScanNet++} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
-        \makecell[c]{27.33\\24.37\\28.489\\30.17} &
+        \makecell[c]{27.33\\24.37\\28.48\\30.17} &
         \makecell[c]{0.913\\0.873\\0.925\\0.937} &
         \makecell[c]{0.156\\0.309\\0.146\\0.129} \\
         \midrule
         \makecell[l]{alameda\\Zip-NeRF} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
-        \makecell[c]{20.54\\22.108\\22.274\\22.41} &
+        \makecell[c]{20.54\\22.10\\22.27\\22.41} &
         \makecell[c]{0.665\\0.673\\0.686\\0.703} &
         \makecell[c]{0.430\\0.523\\0.437\\0.400} \\
         \midrule
@@ -677,44 +521,92 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
         \midrule
         \makecell[l]{london\\Zip-NeRF} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
-        \makecell[c]{26.09\\25.878\\26.13\\27.04} &
+        \makecell[c]{26.09\\25.87\\26.13\\27.04} &
         \makecell[c]{0.793\\0.792\\0.802\\0.815} &
         \makecell[c]{0.414\\0.499\\0.430\\0.395} \\
         \midrule
         \makecell[l]{nyc\\Zip-NeRF} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
-        \makecell[c]{26.505\\26.573\\26.94\\27.61} &
+        \makecell[c]{26.50\\26.57\\26.94\\27.61} &
         \makecell[c]{0.797\\0.791\\0.794\\0.815} &
         \makecell[c]{0.367\\0.460\\0.452\\0.350} \\
 \end{longtable}
 \endgroup
 
-从表~\ref{tab:exp-main-fisheye} 可以看出，本文方法在 ScanNet++ 和 Zip-NeRF 两类公开鱼眼场景上均取得了稳定的量化优势。在 ScanNet++ 室内场景中，本文方法在 apartment、classroom、kitchen 和 office 等场景上取得最高的 PSNR，并在所有 ScanNet++ 场景上取得最高的 SSIM 和最低的 LPIPS；即使在 bedroom 场景中 PSNR 与最优方法接近，本文方法仍在结构相似度和感知误差上保持优势。这说明基于虚拟透视图的训练方式不仅能够缓解鱼眼边缘的强畸变问题，也能在室内遮挡和复杂几何结构下保持较好的整体重建质量。
+从表~\ref{tab:exp-main-fisheye} 可以看出，本文方法在 ScanNet++ 和 Zip-NeRF 两类公开鱼眼场景上均取得了稳定的量化优势。在 ScanNet++ 室内场景中，本文方法在 apartment、classroom、kitchen 和 office 等场景上取得最高的 PSNR，并在所有 ScanNet++ 场景上取得最高的 SSIM 和最低的 LPIPS；即使在 bedroom 场景中 PSNR 与最优方法接近，本文方法仍在结构相似度和感知误差上保持优势。这说明基于虚拟透视图的训练方式不仅能够缓解鱼眼边缘的强畸变问题，也能在室内遮挡和复杂几何结构下保持稳定的整体重建质量。
 
-在 Zip-NeRF 场景上，本文方法同样在 alameda、berlin、london 和 nyc 四个场景中取得最优或接近最优的结果，并在感知指标 LPIPS 上表现出更稳定的优势。与直接在去畸变图像上训练 3DGS 相比，本文方法避免了单张大视场角去畸变图带来的边缘拉伸；与 3DGUT 和 3DGEER 等直接处理畸变相机或射线空间的方法相比，本文方法通过多个小视场角虚拟透视图复用标准 3DGS 的透视投影假设，一方面使得训练的模型可以复用当前很多已有的3DGS的渲染器进行渲染， 另一方面消除了鱼眼的畸变对训练的影响而没有增加更多的近似，提高了训练结果的质量。
+在 Zip-NeRF 场景上，本文方法同样在 alameda、berlin、london 和 nyc 四个场景中取得最优或接近最优的结果，并在感知指标 LPIPS 上表现出更稳定的优势。与直接在去畸变图像上训练 3DGS 相比，本文方法避免了单张大视场角去畸变图带来的边缘拉伸；与 3DGUT 和 3DGEER 等直接处理畸变相机或射线空间的方法相比，本文方法通过多个小视场角虚拟透视图复用标准 3DGS 的透视投影假设，一方面使得训练的模型可以复用当前很多已有的3DGS的渲染器进行渲染， 另一方面降低了鱼眼强畸变投影直接进入 3DGS 局部线性近似的影响，将误差限制在图像重采样和标定误差中，提高了训练结果的质量。
 因此，主实验结果表明，本文方法的提升并非局限于某一特定数据集，而是能够在不同来源、不同场景布局的鱼眼数据上稳定成立。
 
 \begin{figure}[htbp]
     \centering
-    \fbox{
-    \begin{minipage}[c][0.34\textheight][c]{0.94\textwidth}
-        \centering
-        \small 定性网格对比图占位：按场景展示 GT、3DGS + 去畸变图像、3DGUT、3DGEER 和本文方法的渲染结果，并在鱼眼边缘、弱纹理墙面和高频细节区域放大局部误差。
-    \end{minipage}
-    }
-    \caption{各数据集上的新视角合成定性对比图}
+    \scriptsize
+    \setlength{\tabcolsep}{1pt}
+    \renewcommand{\arraystretch}{0.35}
+    \begin{tabular}{cccc}
+        GT & 3DGUT & 3DGEER & 本文方法 \\
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/apartment/annotated_gt.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/apartment/annotated_3dgut.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/apartment/annotated_3dgeer.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/apartment/annotated_ours.png} \\
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/bedroom/annotated_gt.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/bedroom/annotated_3dgut.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/bedroom/annotated_3dgeer.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/bedroom/annotated_ours.png} \\
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/classroom/annotated_gt.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/classroom/annotated_3dgut.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/classroom/annotated_3dgeer.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/classroom/annotated_ours.png} \\
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/kitchen/annotated_gt.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/kitchen/annotated_3dgut.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/kitchen/annotated_3dgeer.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/kitchen/annotated_ours.png} \\
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/office/annotated_gt.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/office/annotated_3dgut.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/office/annotated_3dgeer.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/office/annotated_ours.png}
+    \end{tabular}
+    \caption{ScanNet++ 场景上的新视角合成定性对比。自上而下依次为 apartment、bedroom、classroom、kitchen 和 office；图中标注区域突出不同方法在局部结构、边缘区域和纹理细节上的差异。}
     \label{fig:exp-qual-grid}
 \end{figure}
 
-图~\ref{fig:exp-qual-grid} 将用于补充表~\ref{tab:exp-main-fisheye} 的定量结论。定量指标能够反映整体重建误差，而通过上述真值图片和不同方法重建结果的渲染图对比，更加直接的展示了我们的方法对重建质量的提升，可以看到我们的方法可以更好的重建出场景中的细节纹理。
+\begin{figure}[htbp]
+    \centering
+    \scriptsize
+    \setlength{\tabcolsep}{1pt}
+    \renewcommand{\arraystretch}{0.35}
+    \begin{tabular}{cccc}
+        GT & 3DGUT & 3DGEER & 本文方法 \\
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/alameda/annotated_gt.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/alameda/annotated_3dgut.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/alameda/annotated_3dgeer.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/alameda/annotated_ours.png} \\
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/berlin/annotated_gt.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/berlin/annotated_3dgut.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/berlin/annotated_3dgeer.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/berlin/annotated_ours.png} \\
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/london/annotated_gt.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/london/annotated_3dgut.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/london/annotated_3dgeer.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/london/annotated_ours.png} \\
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/nyc/annotated_gt.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/nyc/annotated_3dgut.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/nyc/annotated_3dgeer.png} &
+        \includegraphics[width=0.24\linewidth]{paper/eval_image/nyc/annotated_ours.png}
+    \end{tabular}
+    \caption{Zip-NeRF 场景上的新视角合成定性对比。自上而下依次为 alameda、berlin、london 和 nyc；图中标注区域突出不同方法在局部结构、边缘区域和纹理细节上的差异。}
+    \label{fig:exp-qual-grid-zipnerf}
+\end{figure}
+
+图~\ref{fig:exp-qual-grid} 和图~\ref{fig:exp-qual-grid-zipnerf} 补充了表~\ref{tab:exp-main-fisheye} 的定量结论。定量指标能够反映整体重建误差，而真值图像与不同方法渲染结果的网格对比可以更直观地展示本文方法在鱼眼边缘、弱纹理墙面和高频细节区域的重建差异。
 
 
 
 \subsection{SfM 管线实验}
 
-为了验证几何先验辅助的 SfM 管线在真实采集长序列数据上的效率与精度，本文在真实采集的 company 和 jazz 两个场景上比较传统增量式 SfM 标定结果与本文快速 SfM 管线得到的相机参数。两组相机参数分别送入相同的虚拟透视图生成流程和相同的 3DGS 训练设置，最终使用测试视角上的 PSNR、SSIM 和 LPIPS 衡量由相机参数支撑的新视角合成质量。同时，本文记录两种 SfM 管线在相同硬件环境下完成标定所需的运行用时，用于比较增量式 SfM 与本文快速 SfM 的效率差异。
+为了验证几何先验辅助的 SfM 管线在真实采集长序列数据上的标定效率与下游几何一致性，本文在 company 和 jazz 两个真实采集场景上对比传统增量式 SfM 与本文快速 SfM 管线。每个场景使用同一组鱼眼视频进行标定，并按 1 fps 的频率抽取视频帧。由于真实采集数据缺少精确位姿真值，本文不直接评估 LiDAR-IMU 初始位姿误差，而是将两组标定结果分别送入相同的虚拟透视图生成流程和 3DGS 训练设置，并通过测试视角 PSNR、SSIM 和 LPIPS 间接衡量相机参数对新视角合成的支撑效果。同时，本文记录两种 SfM 管线在相同硬件环境下完成标定所需的运行用时。
 
-本文不将重投影误差作为主要评价指标。原因在于重投影误差主要反映已匹配特征点在当前优化模型下的一致性，容易受到特征分布、外点过滤和可见点数量影响；对于 3DGS 训练而言，更关键的是相机外参是否能在稠密图像监督下具有良好的几何一致性，从而能支撑稳定的新视角合成。因此，本实验采用渲染质量作为间接但更贴近下游任务的评价标准，并结合 SfM 标定用时共同评价两条管线的效果。
+本文不将重投影误差作为主要评价指标。原因在于重投影误差主要反映已匹配特征点在当前优化模型下的一致性，容易受到特征分布、外点过滤和可见点数量影响；对于 3DGS 训练而言，更关键的是相机外参是否能在稠密图像监督下保持良好的几何一致性，从而支撑稳定的新视角合成。因此，本实验采用渲染质量作为间接但更贴近下游任务的评价标准，并结合 SfM 标定用时共同评价两条管线的效果。
 
 \begin{table}[htbp]
     \centering
@@ -728,22 +620,23 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
         >{\centering\arraybackslash}X
         >{\centering\arraybackslash}X
         >{\centering\arraybackslash}X
+        >{\centering\arraybackslash}X
         >{\centering\arraybackslash}X}
         \toprule
-        Scene & 标定方法 & SfM 用时$\downarrow$ & PSNR$\uparrow$ & SSIM$\uparrow$ & LPIPS$\downarrow$ \\
+        Scene & 标定方法 & 图片数量 & SfM 用时$\downarrow$ & PSNR$\uparrow$ & SSIM$\uparrow$ & LPIPS$\downarrow$ \\
         \midrule
-        company & 增量式 SfM & 待填 & 待填 & 待填 & 待填 \\
-        company & 本文快速 SfM & 待填 & 待填 & 待填 & 待填 \\
+        company & 增量式 SfM & 832 & 4257 & 23.19 & 0.820 & 0.231 \\
+        company & 本文快速 SfM & 832 & 1036 & 23.06 & 0.799 & 0.245 \\
         \midrule
-        jazz & 增量式 SfM & 待填 & 待填 & 待填 & 待填 \\
-        jazz & 本文快速 SfM & 待填 & 待填 & 待填 & 待填 \\
+        jazz & 增量式 SfM & 1066 & 11954 & 23.51 & 0.777 & 0.319 \\
+        jazz & 本文快速 SfM & 1066 & 1910 & 23.35 & 0.773 & 0.319 \\
         \bottomrule
     \end{tabularx}
 \end{table}
 
-表~\ref{tab:exp-sfm} 的结果用于验证本文快速 SfM 管线在真实采集数据上的实用价值。实验结果表明，本文快速 SfM 管线在显著缩短标定用时的同时，取得了不低于传统增量式 SfM 的新视角合成质量。该结果说明，LiDAR-IMU 提供的先验位姿能够减少长序列鱼眼图像中的逐帧注册开销，并且也不会因为累积误差导致后续的三角化于光束平差的优化进入局部极小值。
+表~\ref{tab:exp-sfm} 的结果表明，本文快速 SfM 管线在两个真实采集场景上均显著缩短了标定用时：company 场景由 \(4257\) s 降至 \(1036\) s，jazz 场景由 \(11954\) s 降至 \(1910\) s。与此同时，两条管线对应的下游新视角合成指标保持在相近水平：company 场景中 PSNR 差异为 \(0.13\) dB，jazz 场景中 PSNR 差异为 \(0.16\) dB，SSIM 和 LPIPS 也仅有小幅变化。该结果说明，LiDAR-IMU 位姿先验与固定轮次全局优化能够减少传统增量式 SfM 中逐帧注册和反复全局光束平差带来的时间开销，并在下游渲染质量上保持与传统 SfM 管线相当的标定效果。
 
-从下游重建角度看，快速 SfM 的意义不仅在于节省标定时间，也在于得到足够稳定的相机外参。 而 3DGS 对外参误差非常敏感，轻微的姿态偏差就可能在训练中表现为重影、浮点或局部纹理错位。因此，company 和 jazz 场景中的结果说明，先验位姿辅助的迭代式标定管线并没有以牺牲重建质量为代价换取速度，而是同时提高了真实采集长序列数据的处理效率和工程可用性。
+从工程使用角度看，快速 SfM 的主要价值在于降低长序列鱼眼数据的标定成本。由于标定时间显著缩短，实际采集流程可以在相同时间预算内处理更密集的抽帧结果，为高光、反射和弱纹理区域提供更连续的视角约束。需要指出的是，本文实验并不表明快速 SfM 在标定精度上优于传统增量式 SfM，而是说明其能够以更低时间开销获得足以支撑后续 3DGS 训练的相机参数。
 
 \subsection{ScanNet++ 上的消融实验}
 
@@ -764,7 +657,7 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
         方法设置 & PSNR$\uparrow$ & SSIM$\uparrow$ & LPIPS$\downarrow$\\
         \midrule
         去畸变图像训练 & 29.44 & 0.950 & 0.327 \\
-        虚拟透视图 & 30.998 & 0.961 & 0.094 \\
+        虚拟透视图 & 30.99 & 0.961 & 0.094 \\
         +位姿二次精化& 31.97 & 0.966 & 0.085 \\
         +K-d tree 下采样后三维高斯初始化 & 32.36 & 0.967 & 0.083 \\
         \bottomrule
@@ -780,26 +673,26 @@ K-d tree 下采样后的 LiDAR 高斯初始化带来了较小但稳定的指标�
 
 \subsection{结果分析和局限性}
 
-综合主实验、SfM 管线实验和消融实验可以看出，本文方法的主要收益来自标定质量提升和投影模型适配两个方面。
+综合主实验、SfM 管线实验和消融实验可以看出，本文方法的主要收益来自标定效率提升、投影模型适配和几何初始化三个方面。
 主量化实验表明，基于虚拟透视图的训练方式能够在 ScanNet++ 和 Zip-NeRF 上稳定优于去畸变训练、通用畸变相机 3DGS 方法和直接射线空间渲染方法；消融实验进一步说明，该优势主要来自虚拟透视图对鱼眼强畸变投影的分解，以及位姿二次精化对多虚拟视图几何一致性的修正。这些结果共同支撑了本文的核心观点：对于大视场角鱼眼场景，与其直接修改 3DGS 光栅化器以适配复杂畸变投影，不如将鱼眼观测转换为一组标定一致的小视场角透视观测后，直接复用成熟的透视相机 3DGS 训练框架进行训练。
 
-快速 SfM 管线实验进一步验证了本文方法在真实采集流程中的工程价值。通过快速 SfM 我们能够让 SfM 的用时维持线性增长，而不是像传统增量式管线中，图像数量的增加会导致每次全局光束平差的耗时和全局光束平差的次数都大大上升，从而导致超线性的时间增长。
-从实际工程的角度上考虑，标定时间的降低使得我们能够以更高的fps从视频中提取图像，从而降低两帧之间的视差，使得我们可以进一步提高标定中点的轨迹长度，从而带来更好的标定质量；同时，更密集的图像提取有利于对高光和反射区域的重建，因为密集的观测能够对这样的区域具有更加良好的约束，带来更好的重建效果。
+快速 SfM 管线实验进一步验证了本文方法在真实采集流程中的工程价值。表~\ref{tab:exp-sfm} 中的两个真实场景表明，本文管线能够在大幅缩短标定用时的同时取得与传统 SfM 管线相当的下游重建指标。这一结果来自先验位姿对注册过程的约束：所有图像可以在完成匹配和三角化后进入固定轮次的全局优化，从而避免传统增量式管线随图像数量增加而反复触发大规模全局光束平差。
+从实际工程角度看，标定时间降低使采集系统能够在相同时间预算内处理更密集的抽帧结果，从而缩小相邻训练视角间的运动间隔，并为高光、反射和弱纹理区域提供更连续的图像观测。该收益主要体现在采集与处理流程的可用性上，而不是标定精度相对传统 SfM 的绝对优势。
 
 然而，本文方法仍存在一定局限性。首先，虚拟透视图的质量依赖原始鱼眼内外参和虚拟视图位姿的准确性，当标定误差较大时，重采样过程可能在边缘区域放大像素错位，因此仍需要位姿二次精化来缓解这一问题。
-其次，我们的快速 SfM 管线实际上对初始化具有较为严格的精度要求，我们当前初始化利用的是实时 SLAM 的结果，其本身就已经有较高的精度，每张图与精确的标定结果的误差大概在十个像素以内，在此基础上快速SfM管线才能得到比较好的效果。
-然后，LiDAR 初始化在平均 PSNR、SSIM 和 LPIPS 上提升有限，说明在训练充分的设置下，3DGS 的自适应控制机制已经能够重新分配高斯点，雷达先验更多是让弱纹理区域有比较好的初始化，使得低纹理区域产生更少的浮点。
+其次，快速 SfM 管线对初始位姿精度存在依赖。当前实验中的初始化来自实时 SLAM，其与最终标定结果的投影偏差大致处于十像素量级以内；若初始位姿误差进一步增大，固定轮次全局优化可能难以稳定收敛到可用结果。
+然后，LiDAR 初始化在平均 PSNR、SSIM 和 LPIPS 上提升有限，说明在训练充分的设置下，3DGS 的自适应控制机制已经能够重新分配高斯点，雷达先验更多体现为向弱纹理区域提供更合理的初始化，从而减少低纹理区域的漂浮伪影。
 最后，本文实验主要覆盖室内和公开鱼眼场景，未来仍需要在更大尺度的场景中进一步验证该管线的鲁棒性。
 
 \section{总结与展望}
 
 本文围绕鱼眼相机与激光雷达融合条件下的三维高斯场景重建问题，提出了一套面向室内大视场角采集数据的完整重建管线。针对鱼眼图像中存在的强畸变、长序列标定开销大以及弱纹理区域几何初始化不足等问题，本文没有直接对 3DGS 光栅化器进行复杂改写，而是从相机标定、图像表示和几何初始化三个层面进行处理，使鱼眼采集数据能够更稳定地接入标准三维高斯训练框架。
-首先，本文提出了基于几何先验的快速 SfM 管线。该管线利用 LiDAR-IMU 里程计和相机到雷达的预标定外参，为鱼眼图像提供较准确的相机位姿初值，并在此基础上进行图像匹配、三角化和光束平差优化。与传统增量式 SfM 相比，该策略减少了逐帧注册和反复全局优化带来的计算开销，使长序列鱼眼数据的标定过程更加高效。同时，真实采集场景上的实验表明，该管线能够在缩短标定用时的同时保持比较优秀的标定结果，为后续高质量三维高斯的重建提供较为良好的位姿。
+首先，本文提出了基于几何先验的快速 SfM 管线。该管线利用 LiDAR-IMU 里程计和相机到雷达的预标定外参，为鱼眼图像提供较准确的相机位姿初值，并在此基础上进行图像匹配、三角化和光束平差优化。与传统增量式 SfM 相比，该策略减少了逐帧注册和反复全局优化带来的计算开销，使长序列鱼眼数据的标定过程更加高效。同时，真实采集场景上的实验表明，该管线能够在提高标定效率的同时，取得与传统 SfM 管线相当的标定效果，为后续三维高斯重建提供可用的相机参数。
 同时，本文提出了基于虚拟透视图的鱼眼图像三维高斯重建方法。该方法通过估计鱼眼图像的有效视场角和输出分辨率，将单张鱼眼图像拆分为多张共享光心的小视场角虚拟透视图，并将每张虚拟透视图作为标准透视相机输入 3DGS 训练。这样既保留了鱼眼相机的大视场角观测信息，又避免了单张大视场角去畸变图像在边缘区域产生严重拉伸，同时减少了直接在鱼眼投影下使用局部线性高斯投影近似所带来的误差。实验结果表明，该模块有效提升了基于鱼眼相机重建的高斯的质量。
 其次，本文引入了基于 LiDAR 点云的高斯初始化策略。针对完整雷达点云规模过大、直接初始化会增加训练负担的问题，本文采用 K-d tree 下采样控制初始高斯数量，并利用代表点父节点的局部协方差初始化高斯尺度和旋转，使初始化的高斯能够更好适配局部表面几何。消融实验表明，在训练充分的情况下，LiDAR 初始化也能起到一定的提升效果，更加重要的是，它为弱纹理区域和局部表面结构提供更合理的初始分布。
-最后，本文在 ScanNet++、Zip-NeRF 以及真实采集场景上对所提出的方法进行了验证。各数据集上的量化对比表明，本文方法相较去畸变图像训练、通用畸变相机 3DGS 方法和直接射线空间渲染方法，在 PSNR、SSIM 和 LPIPS 等指标上取得了更稳定的表现；消融实验进一步验证了虚拟透视图、位姿二次精化和 LiDAR 初始化各模块的作用。总体而言，本文证明了在鱼眼和激光雷达联合采集条件下，通过几何先验辅助标定、虚拟透视图重采样和尺度感知初始化，可以构建一条兼顾标定效率、渲染质量和工程可用性的三维高斯重建管线。
+最后，本文在 ScanNet++、Zip-NeRF 以及真实采集场景上对所提出的方法进行了验证。各数据集上的量化对比表明，本文方法相较去畸变图像训练、通用畸变相机 3DGS 方法和直接射线空间渲染方法，在 PSNR、SSIM 和 LPIPS 等指标上取得了更稳定的表现；真实采集场景上的 SfM 对比表明，本文管线在提高标定效率的同时，能够取得与传统 SfM 管线相当的标定效果；消融实验进一步验证了虚拟透视图、位姿二次精化和 LiDAR 初始化各模块的作用。总体而言，本文证明了在鱼眼和激光雷达联合采集条件下，通过几何先验辅助标定、虚拟透视图重采样和尺度感知初始化，可以构建一条兼顾标定效率、渲染质量和工程可用性的三维高斯重建管线。
 
 本文方法对 LiDAR 融合得到的密集点云仍有进一步利用空间。实际实验中，基于融合后的雷达点云，经过下采样并结合 GP3 算法 \cite{marton2009fast} 已经可以得到较为完整的场景网格；然而在真实采集场景中，网格与相机位姿之间仍存在精确对齐的困难，使得本文尚未充分利用网格法线和深度信息对三维高斯的位置与协方差施加几何约束。若后续工作能够进一步解决网格、点云与相机观测之间的高精度配准问题，则有望将更强的表面几何先验引入三维高斯优化过程，从而提升模型的几何一致性和跨视角泛化能力。
 
-此外，本文当前的标定管线虽然能够取得较好的结果，但其精度仍然依赖后续的虚拟透视图位姿二次优化。实验分析表明，限制标定精度的主要因素在于鱼眼图像上的特征提取和匹配质量。对于基于学习的 SuperPoint 特征，由于其主要在低畸变图像上训练，直接应用于鱼眼图像时特征点质量和匹配稳定性会下降，难以形成足够数量的有效匹配；对于传统 SIFT 特征，鱼眼图像中的强畸变会导致同一三维点在不同视角下的局部外观变化较大，同样不利于构建稳定的长匹配轨迹。
+此外，本文当前的标定管线虽然能够在更低时间开销下取得与传统 SfM 管线相当的效果，但其稳定性仍然依赖后续的虚拟透视图位姿二次优化。实验分析表明，限制鱼眼标定鲁棒性的主要因素在于鱼眼图像上的特征提取和匹配质量。对于基于学习的 SuperPoint 特征，由于其主要在低畸变图像上训练，直接应用于鱼眼图像时特征点质量和匹配稳定性会下降，难以形成足够数量的有效匹配；对于传统 SIFT 特征，鱼眼图像中的强畸变会导致同一三维点在不同视角下的局部外观变化较大，同样不利于构建稳定的长匹配轨迹。
 因此，未来工作可以进一步围绕鱼眼图像中的长轨迹匹配展开，探索利用 LiDAR 密集点云为跨视角图像匹配提供几何引导。通过将雷达几何先验与图像特征匹配过程结合，有望提升鱼眼相机标定的精度和鲁棒性，并进一步减少后续位姿二次精化对重建质量的影响。

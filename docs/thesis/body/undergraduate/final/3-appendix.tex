@@ -2,5 +2,222 @@
 
 {
     \sectionnonum{附录}
-    
+
+    \phantomsection
+    \subsection*{附录 A：迭代式快速 SfM 管线实现细节}
+    \addcontentsline{toc}{subsection}{附录 A：迭代式快速 SfM 管线实现细节}
+    \label{app:fast-sfm}
+
+    本文快速 SfM 管线的实现目标是在已有 LiDAR-IMU 位姿先验的条件下，避免传统增量式 SfM 中逐图像注册和反复全局光束平差带来的计算开销。给定第 \(t\) 帧图像的先验位姿 \(\mathbf{T}_{c_t}^{w,0}\)，本文首先使用 SuperPoint 提取鱼眼图像特征，并使用 LightGlue 计算候选图像对之间的特征匹配。候选图像对由四类约束共同生成：时间邻近匹配、空间邻近匹配、语义邻近匹配和长程锚点匹配。时间邻近匹配令每张图与其后 \(w\) 张图匹配，本文默认 \(w=4\)；空间邻近匹配根据先验位姿为每张图选取 \(k\) 个空间邻近图像，本文默认 \(k=20\)；语义邻近匹配使用 NetVLAD 全局描述子为每张图选取 \(m\) 个外观邻近图像，本文默认 \(m=40\)；长程锚点匹配每隔 \(g\) 帧选取一个锚点并对锚点两两匹配，本文默认 \(g=20\)。锚点匹配仍包含二次项，但其匹配对数量约为 \(P_{\mathrm{anchor}}(n)=n^2/(2g^2)\)，常数系数较小，因此能够在补充长程约束的同时控制匹配规模。
+
+    在得到特征匹配后，本文采用三轮“重新三角化--光束平差”迭代优化相机参数。三角化阶段通过三类不同含义的重投影误差阈值控制匹配轨迹的保留和扩展。第一类为观测过滤阈值，用于剔除已有三维点中重投影误差过大的二维观测；第二类为轨迹合并阈值，用于判断由不同图像对三角化得到的轨迹是否可以合并为同一个三维点；第三类为轨迹补全阈值，用于将尚未关联的二维观测补充到已有三维点轨迹中。本文在前三轮三角化中分别采用 \(4\) px、\(4\) px 和 \(2\) px 的阈值设置，即第一轮和第二轮将观测过滤、轨迹合并和轨迹补全的阈值均设为 \(4\) px，第三轮将三者均设为 \(2\) px。前两轮较宽松的阈值有助于保留更多有效匹配并稳定优化，最后一轮较严格的阈值用于剔除低质量三角化点并提升最终标定精度。
+
+    \begin{table}[!htbp]
+        \centering
+        \caption{迭代式 SfM 三角化阶段的重投影误差阈值设置}
+        \label{tab:app-sfm-triangulation-threshold}
+        \scriptsize
+        \setlength{\tabcolsep}{3pt}
+        \begin{tabular}{ccccc}
+            \toprule
+            迭代轮次 & 优化目标 & \makecell[c]{观测过滤\\阈值} & \makecell[c]{轨迹合并\\阈值} & \makecell[c]{轨迹补全\\阈值} \\
+            \midrule
+            第 1 轮 & 外参微调 & \(4\) px & \(4\) px & \(4\) px \\
+            第 2 轮 & 内外参联合优化 & \(4\) px & \(4\) px & \(4\) px \\
+            第 3 轮 & 严格过滤与精化 & \(2\) px & \(2\) px & \(2\) px \\
+            \bottomrule
+        \end{tabular}
+    \end{table}
+
+    \begin{algorithm}[!htbp]
+        \caption{基于几何先验的迭代式快速 SfM}
+        \label{alg:app-fast-sfm}
+        \begin{algorithmic}[1]
+            \REQUIRE 鱼眼图像集合 \(\{I_t\}\)，初始内参 \(K_f^0\)，LiDAR-IMU 位姿 \(\{\mathbf{T}_{l_t}^{w}\}\)，相机到 LiDAR 外参 \(\mathbf{T}_{c}^{l}\)
+            \ENSURE 优化后的鱼眼相机参数与稀疏点云
+            \STATE 由 \(\mathbf{T}_{c_t}^{w,0}=\mathbf{T}_{l_t}^{w}\mathbf{T}_{c}^{l}\) 初始化每帧相机位姿
+            \STATE 使用 SuperPoint 提取每张鱼眼图像的局部特征
+            \STATE 生成时间邻近、空间邻近、语义邻近和长程锚点匹配对
+            \STATE 使用 LightGlue 对候选图像对进行特征匹配
+            \FOR{\(r=1,2,3\)}
+                \IF{\(r<3\)}
+                    \STATE 设观测过滤阈值 \(\tau_{\mathrm{filter}}\Leftarrow 4\) px
+                    \STATE 设轨迹合并阈值 \(\tau_{\mathrm{merge}}\Leftarrow 4\) px
+                    \STATE 设轨迹补全阈值 \(\tau_{\mathrm{complete}}\Leftarrow 4\) px
+                \ELSE
+                    \STATE 设观测过滤阈值 \(\tau_{\mathrm{filter}}\Leftarrow 2\) px
+                    \STATE 设轨迹合并阈值 \(\tau_{\mathrm{merge}}\Leftarrow 2\) px
+                    \STATE 设轨迹补全阈值 \(\tau_{\mathrm{complete}}\Leftarrow 2\) px
+                \ENDIF
+                \STATE 使用当前相机参数和特征匹配重新三角化稀疏点
+                \IF{\(r=1\)}
+                    \STATE 固定鱼眼内参，仅优化相机外参和三维点
+                \ELSE
+                    \STATE 联合优化鱼眼内参、相机外参和三维点
+                \ENDIF
+                \STATE 执行全局光束平差并更新相机参数
+            \ENDFOR
+        \end{algorithmic}
+    \end{algorithm}
+
+    \FloatBarrier
+    \phantomsection
+    \subsection*{附录 B：虚拟透视图拆分与采样伪代码}
+    \addcontentsline{toc}{subsection}{附录 B：虚拟透视图拆分与采样伪代码}
+    \label{app:virtual-perspective}
+
+    本文将自动视场角估计、虚拟透视图方向生成和输出分辨率搜索作为离线预处理步骤执行。该步骤首先根据有效像素掩码搜索鱼眼图像的完整竖直视场角 \(F_y\)，再以低分辨率四个对角虚拟视图测试水平视场角 \(F_x\) 是否越界，最后根据式~(\ref{equ:method-contribution-condition}) 搜索满足覆盖要求的最小输出高度 \(N\)。完整流程如算法~\ref{alg:method-auto-perspective-sampling} 所示。
+
+    \begin{algorithm}[!htbp]
+        \caption{自动确定鱼眼虚拟透视图拆分方案}
+        \label{alg:method-auto-perspective-sampling}
+        \begin{algorithmic}[1]
+            \REQUIRE 鱼眼投影函数 \(\pi_f\)，鱼眼有效像素掩码 \(M_f\)，原图大小 \(W_f\times H_f\)，覆盖阈值 \(\eta_c,\eta_r\)，输出高度范围 \([N_{\min},N_{\max}]\)
+            \ENSURE 完整竖直视场角 \(F_y\)，完整水平视场角 \(F_x\)，八视图旋转集合 \(\mathcal{R}\)，虚拟透视图大小 \(W_N\times N\)
+            \STATE 若有效水平视场角小于竖直视场角，则转置图像并交换水平、竖直方向
+            \STATE 在候选范围内二分搜索 \(F_y\)
+            \WHILE{\(F_y\) 搜索区间宽度大于阈值}
+                \STATE 在 \(\mathcal{C}_y(F_y)\) 上均匀采样三维方向并投影到鱼眼图像
+                \IF{所有投影点都位于有效像素区域}
+                    \STATE 增大 \(F_y\) 的下界
+                \ELSE
+                    \STATE 减小 \(F_y\) 的上界
+                \ENDIF
+            \ENDWHILE
+            \STATE 以长宽比推导的水平视场角作为初始可行下界，二分搜索 \(F_x\)
+            \WHILE{\(F_x\) 搜索区间宽度大于阈值}
+                \STATE 用 \(F_x/6,F_y/6\) 的对角旋转和 \(F_x/2,F_y/2\) 的虚拟视场角构造低分辨率四个对角虚拟视图用于搜索
+                \STATE 将每个虚拟视图边界像素反投影并采样到原始鱼眼图像
+                \IF{所有边界采样点均位于有效图像范围}
+                    \STATE 增大 \(F_x\) 的下界
+                \ELSE
+                    \STATE 减小 \(F_x\) 的上界
+                \ENDIF
+            \ENDWHILE
+            \STATE 根据式~(\ref{equ:method-eight-view-rotations})、式~(\ref{equ:method-eight-view-axis}) 和式~(\ref{equ:method-eight-view-diag}) 构造八视图旋转集合 \(\mathcal{R}\)
+            \STATE 根据 \(F_x/2,F_y/2\) 构造虚拟透视相机内参 \(K_p\)
+            \STATE 在 \([N_{\min},N_{\max}]\) 中二分搜索分辨率 \(N\)
+            \STATE 对每个候选 \(N\) 计算所有有效鱼眼像素的贡献值 \(C_N(\mathbf{q})\)
+            \STATE 返回满足式~(\ref{equ:method-contribution-condition}) 的最小 \(N\)
+        \end{algorithmic}
+    \end{algorithm}
+
+    在确定 \(\mathcal{R}\) 与 \(N\) 后，本文通过反向采样生成虚拟透视图。对每个虚拟透视图像素，算法先使用透视相机内参反投影得到虚拟相机坐标系下的射线方向，再通过相对旋转 \(R_k\) 变换到鱼眼相机坐标系，最后由鱼眼投影函数得到原始鱼眼图像上的连续采样坐标。逐像素采样流程如算法~\ref{alg:method-virtual-perspective-sampling} 所示。
+
+    \begin{algorithm}[!htbp]
+        \caption{鱼眼图像到虚拟透视图的反向采样}
+        \label{alg:method-virtual-perspective-sampling}
+        \begin{algorithmic}[1]
+            \REQUIRE 原始鱼眼图像 \(I_f\)，鱼眼投影函数 \(\pi_f\)，虚拟透视内参 \(K_p\)，虚拟相机旋转集合 \(\mathcal{R}\)，输出像素域 \(\Omega_p\)
+            \ENSURE 虚拟透视图集合 \(\{I_k\}_{k=1}^{K}\) 与有效掩码集合 \(\{M_k\}_{k=1}^{K}\)
+            \FOR{每个 \(R_k\in\mathcal{R}\)}
+                \FOR{每个像素 \(\mathbf{u}\in\Omega_p\)}
+                    \STATE \(\mathbf{d}\Leftarrow R_k K_p^{-1}\tilde{\mathbf{u}} / \left\|K_p^{-1}\tilde{\mathbf{u}}\right\|\)
+                    \STATE \(\mathbf{x}_f\Leftarrow \pi_f(\mathbf{d})\)
+                    \IF{\(\mathbf{x}_f\) 位于有效鱼眼像素区域}
+                        \STATE \(I_k(\mathbf{u})\Leftarrow \mathrm{Bilinear}(I_f,\mathbf{x}_f)\)
+                        \STATE \(M_k(\mathbf{u})\Leftarrow 1\)
+                    \ELSE
+                        \STATE \(M_k(\mathbf{u})\Leftarrow 0\)
+                    \ENDIF
+                \ENDFOR
+            \ENDFOR
+        \end{algorithmic}
+    \end{algorithm}
+
+    \FloatBarrier
+    \phantomsection
+    \subsection*{附录 C：LiDAR 点云下采样与高斯初始化}
+    \addcontentsline{toc}{subsection}{附录 C：LiDAR 点云下采样与高斯初始化}
+    \label{app:lidar-init}
+
+    给定经过离群点剔除后的雷达点云 \(P=\{\mathbf{p}_i\}_{i=1}^{N}\)，假设目标最大初始化高斯点数为 \(N_t\)，本文首先根据目标点数自动确定 K-d tree 叶节点容量
+    \begin{equation}
+        \label{equ:method-kdtree-nmin}
+        n_{\mathrm{leaf}}
+        =
+        \max\left(1,\left\lceil \frac{N}{N_t}\right\rceil\right).
+    \end{equation}
+    随后参考 K-d tree 的建立过程，递归地沿点云包围盒最长轴进行空间划分。对于某个待分裂节点 \(S\)，若其点数不超过 \(n_{\mathrm{leaf}}\)，则将其作为叶节点；否则在包围盒最长轴的中心位置进行划分。若中心划分导致某一侧为空，则退化为沿该轴排序后的中位数划分。对于每个叶节点 \(L_j\)，本文从其中随机选择一个原始雷达点作为代表点保留，并使用固定随机种子保证结果可复现：
+    \begin{equation}
+        \label{equ:method-kdtree-centroid}
+        \mathbf{p}_j^\ast
+        =
+        \mathrm{Sample}(L_j).
+    \end{equation}
+    如果最终叶节点数超过 \(N_t\)，则再随机裁剪到目标点数以内。该过程不保证任意局部区域的点数比例严格不变，而是利用 K-d tree 自适应空间划分的性质，使原始点数更多的区域通常被划分为更多叶节点。
+
+    \begin{algorithm}[!htbp]
+        \caption{基于 K-d tree 叶节点代表点的雷达点云下采样}
+        \label{alg:method-kdtree-downsample}
+        \begin{algorithmic}[1]
+            \REQUIRE 雷达点云 \(P=\{\mathbf{p}_i\}_{i=1}^{N}\)，目标保留点数 \(N_t\)
+            \ENSURE 下采样点云 \(P'\)，局部协方差集合 \(\{\Sigma_j\}\)
+            \STATE \(n_{\mathrm{leaf}}\Leftarrow \max(1,\lceil N/N_t\rceil)\)
+            \STATE 初始化节点队列 \(\mathcal{Q}\Leftarrow\{(P,P)\}\)，叶节点及父节点集合 \(\mathcal{L}\Leftarrow\emptyset\)
+            \WHILE{\(\mathcal{Q}\) 非空}
+                \STATE 从 \(\mathcal{Q}\) 中取出一个节点及其父节点 \((S,A)\)
+                \IF{\(|S|\leq n_{\mathrm{leaf}}\)}
+                    \STATE 将 \((S,A)\) 加入集合 \(\mathcal{L}\)
+                \ELSE
+                    \STATE 选择 \(S\) 的包围盒中长度最大的坐标轴 \(a\)
+                    \STATE 按第 \(a\) 维包围盒中心将 \(S\) 划分为 \(S_l\) 和 \(S_r\)
+                    \IF{\(S_l\) 或 \(S_r\) 为空}
+                        \STATE 沿第 \(a\) 维排序，并按中位数重新划分 \(S_l,S_r\)
+                    \ENDIF
+                    \STATE 将 \((S_l,S),(S_r,S)\) 加入 \(\mathcal{Q}\)
+                \ENDIF
+            \ENDWHILE
+            \STATE \(P'\Leftarrow\emptyset,\ \{\Sigma_j\}\Leftarrow\emptyset\)
+            \FOR{每个叶节点及其父节点 \((L_j,A_j)\)}
+                \STATE 从 \(L_j\) 中随机选择代表点 \(\mathbf{p}_j^\ast\)
+                \STATE 计算父节点 \(A_j\) 中点坐标的协方差矩阵 \(\Sigma_j\)
+                \STATE 将 \(\mathbf{p}_j^\ast\) 加入 \(P'\)，将 \(\Sigma_j\) 加入协方差集合
+            \ENDFOR
+            \IF{\(|P'|>N_t\)}
+                \STATE 随机裁剪 \(P'\) 和对应协方差至 \(N_t\) 个元素
+            \ENDIF
+            \STATE 返回 \(P'\) 和 \(\{\Sigma_j\}\)
+        \end{algorithmic}
+    \end{algorithm}
+
+    完成下采样后，本文将保留的雷达点转换为 3DGS 可读取的高斯初始化文件。对于第 \(j\) 个叶节点，代表点 \(\mathbf{p}_j^\ast\) 直接作为高斯中心 \(\mathbf{\mu}_j\)。若原始点云包含颜色属性，则将 RGB 颜色归一化到 \([0,1]\)，并写入球谐函数的直流分量
+    \begin{equation}
+        \label{equ:method-lidar-sh-dc}
+        \mathbf{f}_{\mathrm{dc},j}
+        =
+        \frac{\mathbf{rgb}_j-0.5}{C_0},
+        \quad
+        C_0=0.2820947918.
+    \end{equation}
+    其余高阶球谐系数初始化为 0；若点云没有颜色属性，则使用白色作为初始颜色。透明度参数对所有高斯统一初始化为 1。
+
+    高斯的初始尺度和旋转由代表点所在叶节点的父节点协方差给出。相比直接使用叶节点内的点统计协方差，父节点包含更大的局部邻域，能够更稳定地估计该区域点云的表面分布。记第 \(j\) 个代表点所在叶节点的父节点为 \(A_j\)，其协方差矩阵为
+    \begin{equation}
+        \label{equ:method-lidar-covariance}
+        \Sigma_j
+        =
+        \frac{1}{|A_j|-1}
+        \sum_{\mathbf{p}\in A_j}
+        (\mathbf{p}-\bar{\mathbf{p}}_{A_j})(\mathbf{p}-\bar{\mathbf{p}}_{A_j})^{T},
+    \end{equation}
+    其中 \(\bar{\mathbf{p}}_{A_j}\) 为父节点内点坐标均值。当局部点云协方差退化时，本文使用最小尺度 \(s_{\min}\) 进行正则化。对 \(\Sigma_j\) 进行特征分解并按特征值从大到小排序：
+    \begin{equation}
+        \label{equ:method-lidar-eigen}
+        \Sigma_j = U_j \mathrm{diag}(\lambda_{j,1},\lambda_{j,2},\lambda_{j,3}) U_j^{T}.
+    \end{equation}
+    若 \(U_j\) 的行列式为负，则翻转最后一列以得到合法旋转矩阵。随后将 \(U_j\) 转换为四元数作为高斯旋转参数，并将尺度初始化为
+    \begin{equation}
+        \label{equ:method-lidar-scale}
+        \mathbf{s}_j
+        =
+        \log\left(
+        \gamma
+        \sqrt{
+        \max(\lambda_j, s_{\min}^{2})
+        }
+        \right),
+    \end{equation}
+    其中 \(\gamma\) 为尺度放大系数，实验中取 3。局部点云的协方差矩阵能够反映该区域的表面性质：在平面或边缘附近，较大的特征值通常对应表面切向或结构延展方向，较小的特征值对应法向或厚度方向。因此，用父节点协方差初始化高斯的尺度和旋转，可以使初始各向异性高斯更贴合局部表面几何，而不是从各向同性点状高斯开始优化。
+    \FloatBarrier
 }
