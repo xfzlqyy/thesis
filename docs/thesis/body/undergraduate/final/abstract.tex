@@ -3,8 +3,17 @@
     \bfseries \zihao{3} 摘~要
 \end{center}
 
+三维高斯泼溅近年来显著推动了高保真新视角合成的发展，能够在保持较高渲染质量的同时实现实时显示。然而，现有 3DGS 方法主要面向透视相机和 SfM 稀疏点云初始化设计，直接应用于室内移动采集的鱼眼图像时仍面临强畸变投影、长序列标定和弱纹理几何初始化等问题。本文提出一套基于鱼眼相机与 LiDAR 几何先验的室内三维高斯泼溅重建管线，在保持标准 3DGS 高效训练和渲染框架的同时提升鱼眼场景重建的质量、效率与稳定性。首先，本文利用 LiDAR-IMU 轨迹和 LiDAR-相机预标定外参为鱼眼 SfM 提供位姿先验，减少长轨迹鱼眼序列对逐帧增量式注册的依赖，并降低全局标定的时间开销。其次，本文自动估计鱼眼有效视场角与虚拟视图分辨率，将每张鱼眼图像拆分为八张共享光心的小视场角虚拟透视图，从而避免直接在强非线性鱼眼投影下进行高斯近似。最后，本文引入基于 K-d tree 的 LiDAR 点云比例下采样与尺度感知初始化，在控制初始高斯数量的同时保留采集密度差异，为弱纹理区域和高细节区域提供更稳定的几何先验。本文在 ScanNet++ 和 Zip-NeRF 等公开鱼眼场景上进行实验，结果表明该管线相比传统去畸变训练、通用畸变相机 3DGS 方法和直接射线空间渲染方法均取得更好的新视角合成质量；同时，快速 SfM 实验证明了本文迭代式标定管线在标定效率和标定精度上的优势，消融实验进一步验证了虚拟透视图、位姿二次精化和 LiDAR 初始化对重建质量的提升作用。
+
+\bigskip
+\noindent \textbf{关键词}：三维高斯泼溅；鱼眼相机；新视角合成；运动结构恢复；激光雷达
 
 \cleardoublepage{}
 \begin{center}
     \bfseries \zihao{3} Abstract
 \end{center}
+
+3D Gaussian Splatting has recently advanced high-fidelity novel view synthesis by combining high rendering quality with real-time display. However, existing 3DGS pipelines are mainly designed for perspective cameras and SfM-based sparse point initialization, and therefore remain difficult to apply directly to indoor mobile capture with fisheye images, where strong projection distortion, long-sequence calibration, and weak-texture geometry initialization become coupled challenges. This thesis introduces an indoor 3D Gaussian Splatting reconstruction pipeline that combines fisheye cameras with LiDAR-based geometric priors while preserving the efficient training and rendering framework of standard 3DGS. First, the pipeline uses LiDAR-IMU trajectories and pre-calibrated LiDAR-camera extrinsics as pose priors for fisheye SfM, reducing the dependence on frame-by-frame incremental registration for long fisheye sequences and lowering the cost of global calibration. Second, it automatically estimates the effective fisheye field of view and virtual-view resolution, and decomposes each fisheye image into eight small-FoV virtual perspective views with a shared optical center, avoiding direct Gaussian approximation under highly nonlinear fisheye projection. Third, it introduces K-d tree based proportional LiDAR downsampling and scale-aware initialization to preserve capture-density variation under a bounded number of initial Gaussians, providing more stable geometric support for weakly textured and high-detail regions. Experiments on public fisheye scenes from ScanNet++ and Zip-NeRF show that the proposed pipeline outperforms undistortion-based training, general distorted-camera 3DGS methods, and direct ray-space rendering methods in novel-view synthesis quality. The fast SfM comparison demonstrates the efficiency and accuracy advantages of the proposed iterative calibration pipeline, while ablation studies further validate the improvements in reconstruction quality brought by virtual perspective views, secondary pose refinement, and LiDAR initialization.
+
+\bigskip
+\noindent \textbf{Keywords}: 3D Gaussian Splatting; fisheye camera; novel view synthesis; structure from motion; LiDAR
