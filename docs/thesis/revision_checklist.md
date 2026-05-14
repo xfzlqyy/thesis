@@ -110,8 +110,8 @@ Status labels:
   Required fix: none.  
   Verification: compile PDF and confirm the pipeline figure makes the eight-view virtual split understandable before the detailed algorithm description.
 
-- [ ] **V3. Qualitative comparison still needs the undistortion baseline.**  
-  Status: `blocked`  
-  Current fix: qualitative grids currently include GT, 3DGUT, 3DGEER, and the proposed method, using the available annotated images.  
-  Required fix: add annotated qualitative images for `3DGS + 去畸变图像` and include them in the ScanNet++ and Zip-NeRF qualitative grids.  
-  Verification: after the images are added, confirm the qualitative grids cover the same baseline set as Table `tab:exp-main-fisheye`.
+- [x] **V3. Qualitative comparison still needs the undistortion baseline.**  
+  Status: `verified`  
+  Current fix: qualitative grids now include GT, `3DGS + 去畸变图像`, 3DGUT, 3DGEER, and the proposed method, using the available annotated images.  
+  Required fix: none.  
+  Verification: the qualitative grids cover the same baseline set as Table `tab:exp-main-fisheye`, and the `annotated_3DGS_U.png` files are stored under `figure/paper/eval_image/`.

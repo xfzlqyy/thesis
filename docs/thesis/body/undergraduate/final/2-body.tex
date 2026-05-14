@@ -481,33 +481,33 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
     \endfoot
         \makecell[l]{apartment\\ScanNet++} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
-        \makecell[c]{28.85\\24.40\\\secondcell{31.37}\\\bestcell{32.66}} &
-        \makecell[c]{0.958\\0.898\\\secondcell{0.963}\\\bestcell{0.974}} &
-        \makecell[c]{0.080\\0.274\\\secondcell{0.075}\\\bestcell{0.066}} \\
+        \makecell[c]{24.65\\24.40\\\secondcell{31.37}\\\bestcell{32.66}} &
+        \makecell[c]{0.934\\0.898\\\secondcell{0.963}\\\bestcell{0.974}} &
+        \makecell[c]{0.100\\0.274\\\secondcell{0.075}\\\bestcell{0.066}} \\
         \midrule
         \makecell[l]{bedroom\\ScanNet++} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
-        \makecell[c]{30.55\\25.38\\\bestcell{32.35}\\\secondcell{32.34}} &
-        \makecell[c]{\secondcell{0.971}\\0.908\\\secondcell{0.971}\\\bestcell{0.980}} &
-        \makecell[c]{0.067\\0.278\\\secondcell{0.066}\\\bestcell{0.062}} \\
+        \makecell[c]{24.91\\25.38\\\bestcell{32.35}\\\secondcell{32.34}} &
+        \makecell[c]{0.948\\0.908\\\secondcell{0.971}\\\bestcell{0.980}} &
+        \makecell[c]{0.090\\0.278\\\secondcell{0.066}\\\bestcell{0.062}} \\
         \midrule
         \makecell[l]{classroom\\ScanNet++} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
-        \makecell[c]{30.01\\24.59\\\secondcell{33.41}\\\bestcell{33.84}} &
-        \makecell[c]{0.954\\0.884\\\secondcell{0.961}\\\bestcell{0.976}} &
-        \makecell[c]{0.098\\0.321\\\secondcell{0.094}\\\bestcell{0.074}} \\
+        \makecell[c]{27.18\\24.59\\\secondcell{33.41}\\\bestcell{33.84}} &
+        \makecell[c]{0.931\\0.884\\\secondcell{0.961}\\\bestcell{0.976}} &
+        \makecell[c]{0.117\\0.321\\\secondcell{0.094}\\\bestcell{0.074}} \\
         \midrule
         \makecell[l]{kitchen\\ScanNet++} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
-        \makecell[c]{30.46\\22.96\\\secondcell{30.76}\\\bestcell{32.77}} &
-        \makecell[c]{\secondcell{0.956}\\0.848\\0.953\\\bestcell{0.968}} &
-        \makecell[c]{0.096\\0.317\\\secondcell{0.090}\\\bestcell{0.085}} \\
+        \makecell[c]{26.49\\22.96\\\secondcell{30.76}\\\bestcell{32.77}} &
+        \makecell[c]{0.930\\0.848\\\secondcell{0.953}\\\bestcell{0.968}} &
+        \makecell[c]{0.115\\0.317\\\secondcell{0.090}\\\bestcell{0.085}} \\
         \midrule
         \makecell[l]{office\\ScanNet++} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
-        \makecell[c]{27.33\\24.37\\\secondcell{28.48}\\\bestcell{30.17}} &
-        \makecell[c]{0.913\\0.873\\\secondcell{0.925}\\\bestcell{0.937}} &
-        \makecell[c]{0.156\\0.309\\\secondcell{0.146}\\\bestcell{0.129}} \\
+        \makecell[c]{22.82\\24.37\\\secondcell{28.48}\\\bestcell{30.17}} &
+        \makecell[c]{0.862\\0.873\\\secondcell{0.925}\\\bestcell{0.937}} &
+        \makecell[c]{0.243\\0.309\\\secondcell{0.146}\\\bestcell{0.129}} \\
         \midrule
         \makecell[l]{alameda\\Zip-NeRF} &
         \makecell[l]{3DGS + 去畸变图像\\3DGUT\\3DGEER\\本文方法} &
@@ -545,28 +545,33 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
     \scriptsize
     \setlength{\tabcolsep}{1pt}
     \renewcommand{\arraystretch}{0.35}
-    \begin{tabular}{cccc}
-        GT & 3DGUT & 3DGEER & 本文方法 \\
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/apartment/annotated_gt.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/apartment/annotated_3dgut.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/apartment/annotated_3dgeer.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/apartment/annotated_ours.png} \\
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/bedroom/annotated_gt.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/bedroom/annotated_3dgut.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/bedroom/annotated_3dgeer.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/bedroom/annotated_ours.png} \\
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/classroom/annotated_gt.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/classroom/annotated_3dgut.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/classroom/annotated_3dgeer.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/classroom/annotated_ours.png} \\
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/kitchen/annotated_gt.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/kitchen/annotated_3dgut.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/kitchen/annotated_3dgeer.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/kitchen/annotated_ours.png} \\
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/office/annotated_gt.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/office/annotated_3dgut.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/office/annotated_3dgeer.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/office/annotated_ours.png}
+    \begin{tabular}{ccccc}
+        GT & 3DGS + 去畸变图像 & 3DGUT & 3DGEER & 本文方法 \\
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/apartment/annotated_gt.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/apartment/annotated_3DGS_U.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/apartment/annotated_3dgut.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/apartment/annotated_3dgeer.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/apartment/annotated_ours.png} \\
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/bedroom/annotated_gt.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/bedroom/annotated_3DGS_U.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/bedroom/annotated_3dgut.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/bedroom/annotated_3dgeer.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/bedroom/annotated_ours.png} \\
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/classroom/annotated_gt.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/classroom/annotated_3DGS_U.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/classroom/annotated_3dgut.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/classroom/annotated_3dgeer.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/classroom/annotated_ours.png} \\
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/kitchen/annotated_gt.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/kitchen/annotated_3DGS_U.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/kitchen/annotated_3dgut.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/kitchen/annotated_3dgeer.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/kitchen/annotated_ours.png} \\
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/office/annotated_gt.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/office/annotated_3DGS_U.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/office/annotated_3dgut.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/office/annotated_3dgeer.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/office/annotated_ours.png}
     \end{tabular}
     \caption{ScanNet++ 场景上的新视角合成定性对比。自上而下依次为 apartment、bedroom、classroom、kitchen 和 office；图中标注区域突出不同方法在局部结构、边缘区域和纹理细节上的差异。}
     \label{fig:exp-qual-grid}
@@ -577,24 +582,28 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
     \scriptsize
     \setlength{\tabcolsep}{1pt}
     \renewcommand{\arraystretch}{0.35}
-    \begin{tabular}{cccc}
-        GT & 3DGUT & 3DGEER & 本文方法 \\
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/alameda/annotated_gt.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/alameda/annotated_3dgut.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/alameda/annotated_3dgeer.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/alameda/annotated_ours.png} \\
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/berlin/annotated_gt.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/berlin/annotated_3dgut.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/berlin/annotated_3dgeer.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/berlin/annotated_ours.png} \\
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/london/annotated_gt.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/london/annotated_3dgut.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/london/annotated_3dgeer.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/london/annotated_ours.png} \\
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/nyc/annotated_gt.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/nyc/annotated_3dgut.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/nyc/annotated_3dgeer.png} &
-        \includegraphics[width=0.24\linewidth]{paper/eval_image/nyc/annotated_ours.png}
+    \begin{tabular}{ccccc}
+        GT & 3DGS + 去畸变图像 & 3DGUT & 3DGEER & 本文方法 \\
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/alameda/annotated_gt.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/alameda/annotated_3DGS_U.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/alameda/annotated_3dgut.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/alameda/annotated_3dgeer.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/alameda/annotated_ours.png} \\
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/berlin/annotated_gt.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/berlin/annotated_3DGS_U.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/berlin/annotated_3dgut.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/berlin/annotated_3dgeer.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/berlin/annotated_ours.png} \\
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/london/annotated_gt.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/london/annotated_3DGS_U.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/london/annotated_3dgut.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/london/annotated_3dgeer.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/london/annotated_ours.png} \\
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/nyc/annotated_gt.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/nyc/annotated_3DGS_U.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/nyc/annotated_3dgut.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/nyc/annotated_3dgeer.png} &
+        \includegraphics[width=0.19\linewidth]{paper/eval_image/nyc/annotated_ours.png}
     \end{tabular}
     \caption{Zip-NeRF 场景上的新视角合成定性对比。自上而下依次为 alameda、berlin、london 和 nyc；图中标注区域突出不同方法在局部结构、边缘区域和纹理细节上的差异。}
     \label{fig:exp-qual-grid-zipnerf}
