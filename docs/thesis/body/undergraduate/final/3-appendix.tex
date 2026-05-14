@@ -68,7 +68,7 @@
     \addcontentsline{toc}{subsection}{附录 B：虚拟透视图拆分与采样伪代码}
     \label{app:virtual-perspective}
 
-    本文将自动视场角估计、虚拟透视图方向生成和输出分辨率搜索作为离线预处理步骤执行。该步骤首先根据有效像素掩码搜索鱼眼图像的完整竖直视场角 \(F_y\)，再以低分辨率四个对角虚拟视图测试水平视场角 \(F_x\) 是否越界，最后根据式~(\ref{equ:method-contribution-condition}) 搜索满足覆盖要求的最小输出高度 \(N\)。完整流程如算法~\ref{alg:method-auto-perspective-sampling} 所示。
+    本文将自动视场角估计、虚拟透视图方向生成和输出分辨率搜索作为离线预处理步骤执行。该步骤首先根据有效像素掩码搜索鱼眼图像的完整竖直视场角 \(F_y\)，再以低分辨率八个方向虚拟视图的边缘采样测试水平视场角 \(F_x\) 是否越界，最后根据式~(\ref{equ:method-contribution-condition}) 搜索满足覆盖要求的最小输出高度 \(N\)。完整流程如算法~\ref{alg:method-auto-perspective-sampling} 所示。
 
     \begin{algorithm}[!htbp]
         \caption{自动确定鱼眼虚拟透视图拆分方案}
@@ -86,10 +86,11 @@
                     \STATE 减小 \(F_y\) 的上界
                 \ENDIF
             \ENDWHILE
-            \STATE 以长宽比推导的水平视场角作为初始可行下界，二分搜索 \(F_x\)
+            \STATE 以长宽比推导的水平视场角作为初始可行下界，二分搜索最大可行 \(F_x\)
             \WHILE{\(F_x\) 搜索区间宽度大于阈值}
-                \STATE 用 \(F_x/6,F_y/6\) 的对角旋转和 \(F_x/2,F_y/2\) 的虚拟视场角构造低分辨率四个对角虚拟视图用于搜索
-                \STATE 将每个虚拟视图边界像素反投影并采样到原始鱼眼图像
+                \STATE 根据当前候选 \(F_x\) 与 \(F_y\) 构造八个方向的低分辨率虚拟透视视图
+                \STATE 轴向视角采用 \(F_x/4,F_y/4\) 旋转，对角视角采用 \(F_x/6,F_y/6\) 旋转，单视图视场角为 \(F_x/2,F_y/2\)
+                \STATE 将每个虚拟视图的边缘像素反投影并采样到原始鱼眼图像
                 \IF{所有边界采样点均位于有效图像范围}
                     \STATE 增大 \(F_x\) 的下界
                 \ELSE
