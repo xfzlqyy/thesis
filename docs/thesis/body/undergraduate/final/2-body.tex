@@ -649,8 +649,28 @@ OpenCV 的 fisheye 模型以及大部分被使用的畸变模型都采用这样�
     \end{tabularx}
 \end{table}
 
-表~\ref{tab:exp-sfm} 的结果表明，本文快速 SfM 管线在两个真实采集场景上均显著缩短了标定用时：company 场景由 \(4257\) s 降至 \(1036\) s，jazz 场景由 \(11954\) s 降至 \(1910\) s。与此同时，两条管线对应的下游新视角合成指标保持在相近水平：company 场景中 PSNR 差异为 \(0.13\) dB，jazz 场景中 PSNR 差异为 \(0.16\) dB，SSIM 和 LPIPS 也仅有小幅变化。该结果说明，LiDAR-IMU 位姿先验与固定轮次全局优化能够减少传统增量式 SfM 中逐帧注册和反复全局光束平差带来的时间开销，并在下游渲染质量上保持与传统 SfM 管线相当的标定效果。
-从工程使用角度看，快速 SfM 的主要价值在于降低长序列鱼眼数据的标定成本。由于标定时间显著缩短，实际采集流程中一方面有潜力在相同时间预算内处理更密集的抽帧结果，从而为高光和反射提供更连续的视角约束；另一方面可以通过更长时间的数据采集来的到更加充分的观测，从而取得更好的重建效果。
+表~\ref{tab:exp-sfm} 的结果表明，本文快速 SfM 管线在两个真实采集场景上均显著缩短了标定用时：company 场景由 \(4257\) s 降至 \(1036\) s，jazz 场景由 \(11954\) s 降至 \(1910\) s。与此同时，两条管线对应的下游新视角合成指标保持在相近水平：company 场景中 PSNR 差异为 \(0.13\) dB，jazz 场景中 PSNR 差异为 \(0.16\) dB，SSIM 和 LPIPS 也仅有小幅变化。
+图~\ref{fig:exp-sfm-qual} 给出了对应的可视化对比，可以看到本文快速 SfM 管线得到的渲染结果与增量式 SfM 结果接近，只在局部纹理清晰度上存在细微差别。该结果说明，LiDAR-IMU 位姿先验与固定轮次全局优化能够减少传统增量式 SfM 中逐帧注册和反复全局光束平差带来的时间开销，并在下游渲染质量上保持与传统 SfM 管线相当的标定效果。
+从工程使用角度看，快速 SfM 的主要价值在于降低长序列鱼眼数据的标定成本。由于标定时间显著缩短，实际采集流程中一方面有潜力在相同时间预算内处理更密集的抽帧结果，从而为高光和反射提供更连续的视角约束；另一方面可以通过更长时间的数据采集得到更加充分的观测，从而取得更好的重建效果。
+
+\begin{figure}[htbp]
+    \centering
+    \scriptsize
+    \setlength{\tabcolsep}{1pt}
+    \renewcommand{\arraystretch}{0.35}
+    \begin{tabular}{ccc}
+        GT & 增量式 SfM & 本文快速 SfM \\
+        \includegraphics[width=0.31\linewidth]{paper/eval_sfm/company/gt.png} &
+        \includegraphics[width=0.31\linewidth]{paper/eval_sfm/company/inc_sfm.png} &
+        \includegraphics[width=0.31\linewidth]{paper/eval_sfm/company/fast_sfm.png} \\
+        \includegraphics[width=0.31\linewidth]{paper/eval_sfm/jazz/gt.png} &
+        \includegraphics[width=0.31\linewidth]{paper/eval_sfm/jazz/inc_sfm.png} &
+        \includegraphics[width=0.31\linewidth]{paper/eval_sfm/jazz/fast_sfm.png}
+    \end{tabular}
+    \caption{真实采集场景上 SfM 管线实验的定性可视化结果。上排为 company，下排为 jazz；三列分别为测试视角真值图像、增量式 SfM 标定结果训练得到的渲染结果，以及本文快速 SfM 标定结果训练得到的渲染结果。}
+    \label{fig:exp-sfm-qual}
+\end{figure}
+\FloatBarrier
 
 \subsection{ScanNet++ 上的消融实验}
 
