@@ -18,7 +18,7 @@
     PrintFilePath   = false,            % print tex file path for each page
     % Layout Settings
     TwoSide         = true,             % set to false if don't need empty pages
-    TrueBlankPage   = false,            % 设置为真将使得空白页不再拥有页眉页脚和页号
+    TrueBlankPage   = true,            % 设置为真将使得空白页不再拥有页眉页脚和页号
     % Thesis Info
     ClassNumber     = 按中国图书分类法，学位办网上可查,          % 按中国图书分类法，学位办网上可查
     Security        = 无,              % 注明密级与保密期限，仅限于论文课题来源于国防军工项目，如没有请填：无
@@ -28,7 +28,7 @@
     Grade           = 2022,            % only the year, no '级'
     Major           = 计算机科学与技术,
     Department      = 计算机科学与技术学院,
-    SubmitDate      = 递交日期,
+    SubmitDate      = 2026年5月17日,
     MajorFormat     = cs,
     Degree          = undergraduate,   % 'undergraduate' or 'graduate'
     Type            = thesis,          % 'thesis'   or 'design'
@@ -148,8 +148,6 @@
         \inputbody{final/content}
         \inputbody{final/post}
 
-        \poststyle
-        \inputpage{final}{post}
     }
 }
 
